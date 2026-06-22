@@ -1739,9 +1739,157 @@
 
 
     /* ════════════════════════════════════════════════════════
-       CORE GOAL GENERATOR
+       SELF-CONTAINED BEHAVIOR DETECTION
+       ────────────────────────────────────────────────────────
+       Some high-school templates (fluency probes, vocational
+       task checklists, finance goals) embed their own
+       measurable criteria directly inside the behavior string
+       — words-per-minute rates, percentage thresholds, trial
+       counts, score thresholds, etc. Appending a *second*
+       accuracy criterion and evaluation clause to those goals
+       produces redundant, conflicting, or ungrammatical text.
+
+       isBehaviorSelfContained() returns true when either:
+         (a) The currently selected bank template carries one or
+             more of the CRITERIA_TOKENS in its tokens[] array
+             (authoritative: checked against the data source),
+         OR
+         (b) A regex scan of the live textarea text detects a
+             resolved numeric criterion pattern — a digit
+             immediately followed by a criteria unit keyword
+             (fallback: catches custom freeform text that
+             happens to embed its own measurable standard).
+
+       When true, generateGoal() suppresses "with [Accuracy]"
+       and "[Evaluation]" from the synthesized prose output and
+       removes those fields from the validation requirement and
+       component breakdown.
+    ════════════════════════════════════════════════════════ */
+
+    /**
+     * Canonical set of token names that signal a template
+     * carries its own embedded measurable criterion.
+     * Sourced from GOAL_BANK_MATRIX template token arrays.
+     */
+    const CRITERIA_TOKENS = new Set([
+      'wpm',          // words per minute (fluency rate)
+      'percentage',   // accuracy %, on-task %, completion %
+      'number',       // trial counts, item counts, step counts
+      'score',        // rubric score, prosody rating
+      'total',        // total items in a probe set
+      'trial-count',  // consecutive trial requirement
+      'word-count',   // passage length in fluency probes
+      'syllable-count',
+      'seconds',      // response interval
+      'scale',        // rating scale ceiling
+      'point-count',  // graphed data points
+      'error-count',  // mechanical error ceiling
+      'prompt-count', // adult prompt ceiling
+      'step-count',   // action step count
+      'goal-count',   // IEP goal count
+      'scenario-count',
+      'source-count',
+      'detail-count',
+      'evidence-count',
+      'question-count',
+      'week-count',
+    ]);
+
+    /**
+     * isBehaviorSelfContained(behaviorText)
+     *
+     * Layer 1 — bank template token array inspection:
+     *   If a category and template are selected, look up the
+     *   template object and check whether any of its declared
+     *   token names intersect with CRITERIA_TOKENS.
+     *
+     * Layer 2 — live text regex scan (fallback):
+     *   Scan the resolved behavior string for patterns like
+     *   "80%" or "120 words per minute" or "3 consecutive" —
+     *   indicators that a numeric criterion is already baked in.
+     *   This catches custom freeform entries and templates where
+     *   the educator has already filled in the token values.
+     *
+     * Returns { selfContained: boolean, reason: string }
+     * so the breakdown UI can annotate the detection method.
+     */
+    function isBehaviorSelfContained(behaviorText) {
+
+      // ── Layer 1: token array intersection ─────────────────
+      const categoryKey = $('skillCategory').value;
+      const templateId  = $('behaviorTemplate').value;
+
+      if (categoryKey && templateId) {
+        const category = GOAL_BANK_MATRIX[categoryKey];
+        if (category) {
+          const tmpl = category.templates.find(t => t.id === templateId);
+          if (tmpl && Array.isArray(tmpl.tokens)) {
+            const hasCriterionToken = tmpl.tokens.some(tok => CRITERIA_TOKENS.has(tok));
+            if (hasCriterionToken) {
+              return {
+                selfContained: true,
+                reason: 'Template carries embedded criterion tokens (' +
+                        tmpl.tokens.filter(t => CRITERIA_TOKENS.has(t)).join(', ') + ')',
+              };
+            }
+          }
+        }
+      }
+
+      // ── Layer 2: resolved numeric criterion scan ───────────
+      // Matches patterns like: "80%", "3 consecutive trials",
+      // "120 words per minute", "4 out of 5", "a 4-point scale"
+      const CRITERION_PATTERNS = [
+        /\d+\s*%/,                          // percentage value
+        /\d+\s+(?:words?\s+per\s+minute|wpm)/i,  // fluency rate
+        /\d+\s+(?:out\s+of|of)\s+\d+/i,    // ratio criterion
+        /\d+\s*-?\s*point\s+scale/i,        // rating scale
+        /\d+\s+consecutive/i,               // consecutive trials
+        /\d+\s+trial/i,                     // trial count
+        /\d+\s+step/i,                      // step count
+        /fewer\s+than\s+\d+/i,              // error ceiling
+        /no\s+more\s+than\s+\d+/i,          // prompt ceiling
+        /at\s+least\s+\d+/i,                // minimum threshold
+      ];
+
+      const resolvedText = behaviorText.replace(/\[[^\]]+\]/g, ''); // strip unresolved [tokens]
+      const matchedPattern = CRITERION_PATTERNS.find(re => re.test(resolvedText));
+
+      if (matchedPattern) {
+        return {
+          selfContained: true,
+          reason: 'Behavior text contains a resolved numeric criterion',
+        };
+      }
+
+      return { selfContained: false, reason: null };
+    }
+
+
+    /* ════════════════════════════════════════════════════════
+       CORE GOAL GENERATOR — PROSE SYNTHESIS ENGINE
+       ────────────────────────────────────────────────────────
+       Produces a single, clean, cohesive paragraph formatted
+       as a professional, compliance-ready IEP goal statement.
+
+       SENTENCE ARCHITECTURE:
+         [Timeframe], [Student] [condition clause,] will
+         [behavior], [with [Accuracy],] [Evaluation].
+
+       Self-contained behaviors (those carrying embedded
+       measurable criteria) suppress the "with [Accuracy]"
+       and "[Evaluation]" clauses to prevent conflicting
+       metrics from appearing in the same goal sentence.
+
+       Comma and period placement is handled deterministically
+       by the synthesis function rather than by fragment
+       concatenation, ensuring the output always reads as
+       grammatically correct prose regardless of which optional
+       fields are present or suppressed.
     ════════════════════════════════════════════════════════ */
     function generateGoal() {
+
+      // ── 1. Read field values ───────────────────────────────
       const studentRef = $('studentRef').value.trim();
       const timeframe  = $('timeframe').value.trim();
       const condition  = $('condition').value.trim();
@@ -1749,13 +1897,22 @@
       const accuracy   = $('accuracy').value.trim();
       const evaluation = $('evaluation').value.trim();
 
-      // ── Field validation
+      // ── 2. Self-contained behavior detection ───────────────
+      //    Run before validation so we know which fields are
+      //    required for this specific goal configuration.
+      const { selfContained, reason: scReason } = isBehaviorSelfContained(behavior);
+
+      // ── 3. Field validation ────────────────────────────────
+      //    Accuracy and Evaluation are only required when the
+      //    behavior does not already carry its own criterion.
       const missing = [];
       if (!studentRef) missing.push('Student Reference');
       if (!timeframe)  missing.push('Timeframe');
       if (!behavior)   missing.push('Target Skill / Behavior');
-      if (!accuracy)   missing.push('Accuracy / Criterion');
-      if (!evaluation) missing.push('Consistency / Evaluation');
+      if (!selfContained) {
+        if (!accuracy)   missing.push('Accuracy / Criterion');
+        if (!evaluation) missing.push('Consistency / Evaluation');
+      }
 
       const msgEl = $('validationMsg');
       if (missing.length > 0) {
@@ -1765,24 +1922,57 @@
       }
       msgEl.classList.add('hidden');
 
-      // ── Normalize behavior
+      // ── 4. Normalize behavior text ─────────────────────────
       const behNormalized = normalizeBehavior(behavior);
 
-      // ── Assemble goal lines
-      const lines = [];
-      lines.push(timeframe + ',');
+      // ── 5. Prose synthesis ─────────────────────────────────
+      //    Build the goal as a single grammatical sentence.
+      //    Each clause segment is assembled conditionally;
+      //    trailing punctuation is applied once at the end.
+      //
+      //    Clause order:
+      //      [Timeframe], [Student] [condition,] will [behavior]
+      //      [, with [accuracy]] [, as measured by [evaluation]].
+
+      // Timeframe clause — always present, always followed by comma + space
+      let sentence = timeframe + ', ';
+
+      // Subject clause — student reference with optional condition
       if (condition) {
-        lines.push(studentRef + ' ' + condition + ',');
+        // Normalize condition: strip any trailing comma the educator may have typed
+        const conditionClean = condition.replace(/,\s*$/, '');
+        sentence += studentRef + ' ' + conditionClean + ', ';
       } else {
-        lines.push(studentRef);
+        sentence += studentRef + ' ';
       }
-      lines.push('will ' + behNormalized);
-      lines.push('with ' + accuracy);
-      lines.push(evaluation + '.');
 
-      currentGoal = lines.join('\n');
+      // Core behavior clause — "will [behavior]"
+      // Behavior already normalized; strip any stray trailing period/comma
+      const behClean = behNormalized.replace(/[.,\s]+$/, '');
+      sentence += 'will ' + behClean;
 
-      // ── Render output
+      // Criterion clause — suppressed when behavior is self-contained
+      if (!selfContained && accuracy) {
+        // Strip any leading "with" the educator may have typed to prevent "with with"
+        const accuracyClean = accuracy.replace(/^with\s+/i, '').replace(/[.,\s]+$/, '');
+        sentence += ', with ' + accuracyClean;
+      }
+
+      // Evaluation clause — suppressed when behavior is self-contained
+      if (!selfContained && evaluation) {
+        // The evaluation select options already begin with "as measured by…"
+        // Strip any leading comma the educator may have introduced
+        const evalClean = evaluation.replace(/^[,\s]+/, '').replace(/[.,\s]+$/, '');
+        sentence += ', ' + evalClean;
+      }
+
+      // Terminal period — exactly one, always
+      sentence += '.';
+
+      // Store globally for clipboard copy
+      currentGoal = sentence;
+
+      // ── 6. Render output ───────────────────────────────────
       const output    = $('goalOutput');
       const empty     = $('emptyState');
       const container = $('outputContainer');
@@ -1792,7 +1982,7 @@
       empty.style.display = 'none';
       container.classList.add('has-content');
 
-      // ── Token warning inside output
+      // ── 7. Token placeholder warning ──────────────────────
       const unresolvedTokens = detectUnresolvedTokens(currentGoal);
       const banner           = $('tokenWarningBanner');
       const bannerList       = $('tokenWarningList');
@@ -1803,14 +1993,20 @@
         banner.classList.remove('visible');
       }
 
-      // ── Component breakdown
+      // ── 8. Component breakdown ─────────────────────────────
+      //    Conditionally include Criterion and Evaluation rows
+      //    only when they were used in the synthesized output.
       const components = [
         { label: 'Timeframe',   value: timeframe },
         { label: 'Student Ref', value: studentRef },
-        ...(condition ? [{ label: 'Condition', value: condition }] : []),
+        ...(condition  ? [{ label: 'Condition',  value: condition  }] : []),
         { label: 'Behavior',    value: behavior },
-        { label: 'Criterion',   value: accuracy },
-        { label: 'Evaluation',  value: evaluation },
+        ...(!selfContained && accuracy   ? [{ label: 'Criterion',  value: accuracy   }] : []),
+        ...(!selfContained && evaluation ? [{ label: 'Evaluation', value: evaluation  }] : []),
+        ...(selfContained ? [{
+          label: 'Mode',
+          value: 'Self-contained — criterion embedded in behavior (' + (scReason || 'detected') + ')',
+        }] : []),
       ];
 
       $('breakdownItems').innerHTML = components.map(c => `
