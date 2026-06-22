@@ -105,12 +105,6 @@
     }
 
     /* ── Token pill highlight inside textarea ─────────────── */
-    /*
-     * The textarea itself can't render rich highlighting, so we
-     * surface token warnings through the hint line instead.
-     * The .token-warning class styles that hint when unresolved
-     * [token] placeholders are detected in the behavior value.
-     */
     .token-warning {
       color: #f59e0b;
       font-weight: 600;
@@ -122,10 +116,6 @@
     }
 
     /* ── Goal Bank selection connector arrow ──────────────── */
-    /*
-     * A subtle chevron-flow glyph between category → template
-     * dropdowns to signal the cascade relationship.
-     */
     .cascade-connector {
       display: flex;
       align-items: center;
@@ -722,258 +712,804 @@
     'use strict';
 
     /* ════════════════════════════════════════════════════════
+       BLOCK 1 — TOKEN RECEIVER BOOT BLOCK
+       ────────────────────────────────────────────────────────
+       MUST be the absolute first executable code in this
+       script block. Runs before GOAL_BANK_MATRIX, before any
+       DOMContentLoaded listeners, and before the session guard.
+
+       AUTH ARCHITECTURE:
+       The dashboard (mpowerededucation.com/dashboard.html)
+       calls navigateWithToken(), which appends the OAuth access
+       token as a URL hash fragment:
+         https://iep.mpowerededucation.com/#access_token=<token>
+       This block harvests that fragment, persists it to this
+       subdomain's sessionStorage, and strips the raw credential
+       from the address bar before the session guard runs.
+
+       The wildcard cookie (Domain=.mpowerededucation.com) set
+       by the OAuth provider is automatically sent by the browser
+       on all subdomain requests, but HttpOnly cookies are not
+       readable by client-side JS. SessionStorage is the
+       client-side auth signal; the hash fragment handshake is
+       the required bootstrap mechanism on first subdomain load.
+    ════════════════════════════════════════════════════════ */
+    (function mpBootReceiver() {
+
+      /* Step 1 — bail early if token already present ────────
+         Prevents a stale hash in a cached URL from overwriting
+         a fresher token established later in the session.      */
+      var existingToken = null;
+      try { existingToken = sessionStorage.getItem('oauth_token'); } catch (e) {}
+
+      if (existingToken) {
+        if (window.location.hash) {
+          history.replaceState(null, '', window.location.pathname + window.location.search);
+        }
+        return;
+      }
+
+      /* Step 2 — read and parse the URL hash fragment ───────
+         Expected: #access_token=<url-encoded-token>
+         Handles compound hashes: #access_token=x&state=y
+         Rejoins on '=' to handle base64 padding characters.   */
+      var rawHash = window.location.hash;
+      if (!rawHash || rawHash.length <= 1) { return; }
+
+      var hashParams = {};
+      rawHash.slice(1).split('&').forEach(function (pair) {
+        var parts = pair.split('=');
+        if (parts.length >= 2) {
+          var key = decodeURIComponent(parts[0]);
+          var val = decodeURIComponent(parts.slice(1).join('='));
+          hashParams[key] = val;
+        }
+      });
+
+      var inboundToken = hashParams['access_token'] || null;
+
+      /* Step 3 — basic token sanity check ───────────────────
+         Rejects empty, suspiciously short, or character-invalid
+         values. JWT signature verification is server-side only. */
+      var TOKEN_PATTERN = /^[A-Za-z0-9\-_\.\/+]+$/;
+      var TOKEN_MIN_LEN = 20;
+
+      if (!inboundToken || inboundToken.length < TOKEN_MIN_LEN || !TOKEN_PATTERN.test(inboundToken)) {
+        if (rawHash) {
+          history.replaceState(null, '', window.location.pathname + window.location.search);
+        }
+        return;
+      }
+
+      /* Step 4 — persist to sessionStorage ──────────────────
+         Keys must match exactly what dashboard.html writes via
+         grantAccess() and what the session guard below reads.
+         mp_beta_email is not available in the fragment; it lives
+         in the root domain's sessionStorage and cannot cross the
+         subdomain boundary — header email display will be empty
+         on first cross-subdomain load.                         */
+      try {
+        sessionStorage.setItem('oauth_token',       inboundToken);
+        sessionStorage.setItem('mp_beta_auth_time', Date.now().toString());
+      } catch (writeErr) {
+        console.warn('[mpBootReceiver] sessionStorage write failed:', writeErr);
+      }
+
+      /* Step 5 — strip the hash from the address bar ────────
+         SECURITY: Leaving #access_token= in the URL exposes
+         the token in browser history, Referer headers, and to
+         any third-party JS loaded on this page. history.
+         replaceState() rewrites the address bar entry without
+         triggering a reload or creating a new history entry.
+         Pathname and query string are preserved intentionally. */
+      history.replaceState(
+        null,
+        '',
+        window.location.pathname + window.location.search
+      );
+
+    }()); // end mpBootReceiver
+
+
+    /* ════════════════════════════════════════════════════════
+       BLOCK 2 — SESSION GUARD
+       ────────────────────────────────────────────────────────
+       Runs immediately after mpBootReceiver has had its chance
+       to write the inbound token to sessionStorage. If no token
+       is present after that, the user is not authenticated and
+       is redirected to the root login page. The `next` param
+       allows the login page to redirect back here after a
+       successful OAuth callback.
+    ════════════════════════════════════════════════════════ */
+    (function mpSessionGuard() {
+
+      var token = null;
+      try { token = sessionStorage.getItem('oauth_token'); } catch (e) {}
+
+      if (!token) {
+        var returnPath = encodeURIComponent(
+          window.location.pathname + window.location.search
+        );
+        window.location.replace(
+          'https://mpowerededucation.com/index.html?next=' + returnPath
+        );
+      }
+
+    }()); // end mpSessionGuard
+
+
+    /* ════════════════════════════════════════════════════════
        GOAL BANK MATRIX
-       ─────────────────────────────────────────────────────────
+       ────────────────────────────────────────────────────────
        Schema:
          GOAL_BANK_MATRIX = {
            [categoryKey: string]: {
-             label: string,          // display name for the category
+             label: string,
+             conditions: string[],   // standardized condition strings
              templates: [
                {
-                 id: string,         // stable identifier (kebab-case)
+                 id: string,         // stable kebab-case identifier
                  label: string,      // short display label for <option>
-                 text: string,       // full behavior string with [token] placeholders
-                 tokens: string[],   // list of placeholder names present in text
+                 text: string,       // behavior string w/ [token] placeholders
+                 tokens: string[],   // placeholder names present in text
+                 strand: string,     // IDEA area: Academic|Functional|Transition|Behavioral
                }
              ]
            }
          }
 
-       Token convention: [token] — lowercase, descriptive, wrapped in brackets.
-       The normalizeBehavior() function strips leading "will" prefixes because
-       generateGoal() re-inserts "will " before the normalized text.
-       Therefore all templates are authored WITHOUT a leading "will" prefix
-       so they compose cleanly: "[Student] will [template text]".
+       Token convention: all templates are authored WITHOUT a
+       leading "will" prefix. generateGoal() re-inserts "will "
+       before the normalized text so templates compose cleanly:
+         "[Student] will [template text]."
     ════════════════════════════════════════════════════════ */
     const GOAL_BANK_MATRIX = {
 
+      /* ── 1. Reading Comprehension ──────────────────────── */
       reading_comprehension: {
         label: 'Reading Comprehension',
+        conditions: [
+          'given a grade-level informational text',
+          'given a below-grade-level informational text with graphic support',
+          'given a literary text of approximately [level] reading level',
+          'given access to a text-to-speech accommodation and the printed passage',
+          'when provided a structured annotation guide',
+        ],
         templates: [
           {
             id: 'rc-main-idea',
             label: 'Main Idea + Supporting Details',
             text: 'identify the main idea and [number] supporting details in a [level]-level informational text with minimal prompting',
             tokens: ['number', 'level'],
+            strand: 'Academic',
           },
           {
             id: 'rc-inference',
             label: 'Text-Based Inference',
             text: 'make [number] text-based inferences using explicit evidence from a [level]-level literary or informational passage',
             tokens: ['number', 'level'],
+            strand: 'Academic',
           },
           {
             id: 'rc-vocab-context',
             label: 'Vocabulary in Context',
             text: 'use context clues to determine the meaning of [number] unfamiliar grade-level vocabulary words within a reading passage',
             tokens: ['number'],
+            strand: 'Academic',
           },
           {
             id: 'rc-text-structure',
             label: 'Text Structure Identification',
             text: 'identify and label the text structure (e.g., cause/effect, compare/contrast, sequence) of a [level]-level expository passage and explain its purpose in writing',
             tokens: ['level'],
+            strand: 'Academic',
           },
           {
             id: 'rc-summarize',
             label: 'Oral / Written Summary',
             text: 'produce an oral or written summary of a [level]-level text that includes the central idea, at least [number] key details, and an appropriate conclusion without including personal opinions',
             tokens: ['level', 'number'],
+            strand: 'Academic',
           },
           {
             id: 'rc-author-purpose',
             label: "Author's Purpose & Point of View",
             text: "identify the author's stated or implied purpose and point of view in a [level]-level text, citing at least [number] pieces of textual evidence to support their response",
             tokens: ['level', 'number'],
+            strand: 'Academic',
+          },
+          {
+            id: 'rc-compare-sources',
+            label: 'Cross-Text Synthesis (HS)',
+            text: 'compare and synthesize information from [number] texts on the same topic, identifying points of agreement and contradiction and producing a written or oral summary that integrates both sources',
+            tokens: ['number'],
+            strand: 'Academic',
+          },
+          {
+            id: 'rc-content-area',
+            label: 'Content-Area Reading (HS)',
+            text: 'read and comprehend a [subject]-area text at the [grade]-grade reading level, correctly answering [number] out of [total] text-dependent comprehension questions with access to the passage',
+            tokens: ['subject', 'grade', 'number', 'total'],
+            strand: 'Academic',
           },
         ],
       },
 
+      /* ── 2. Written Expression ─────────────────────────── */
       written_expression: {
         label: 'Written Expression',
+        conditions: [
+          'given a writing prompt and graphic organizer',
+          'given a model essay and scoring rubric',
+          'when provided access to a word processor with spell-check enabled',
+          'given a structured sentence frame as a starting scaffold',
+          'when allowed extended time per the IEP accommodation plan',
+        ],
         templates: [
           {
             id: 'we-paragraph',
             label: 'Structured Paragraph Writing',
             text: 'compose a structured [number]-sentence paragraph that includes a topic sentence, [detail-count] supporting details, and a concluding sentence using correct capitalization and end punctuation',
             tokens: ['number', 'detail-count'],
+            strand: 'Academic',
           },
           {
             id: 'we-essay',
             label: 'Multi-Paragraph Essay',
             text: 'compose a [number]-paragraph [type] essay that includes an introductory paragraph with a thesis, body paragraphs with transitional phrases, and a concluding paragraph demonstrating correct mechanics',
             tokens: ['number', 'type'],
+            strand: 'Academic',
           },
           {
             id: 'we-sentence-combining',
             label: 'Sentence Combining',
             text: 'combine [number] simple sentences into compound or complex sentences using appropriate coordinating or subordinating conjunctions with correct punctuation',
             tokens: ['number'],
+            strand: 'Academic',
           },
           {
             id: 'we-revise-edit',
             label: 'Revise & Edit for Conventions',
             text: 'revise and edit a [length]-word writing sample for [number] targeted mechanical errors (e.g., subject-verb agreement, comma usage, spelling) using a provided checklist',
             tokens: ['length', 'number'],
+            strand: 'Academic',
           },
           {
             id: 'we-planning-organizer',
             label: 'Pre-Writing with Graphic Organizer',
             text: 'independently complete a [type] graphic organizer to plan a writing piece prior to drafting, including a thesis, at least [number] supporting ideas, and supporting evidence for each',
             tokens: ['type', 'number'],
+            strand: 'Academic',
           },
           {
             id: 'we-opinion-argument',
             label: 'Opinion / Argument Writing',
             text: 'write a [number]-paragraph opinion or argument piece that states a clear claim, provides [evidence-count] pieces of text-based evidence, addresses a counterargument, and closes with a restated position',
             tokens: ['number', 'evidence-count'],
+            strand: 'Academic',
+          },
+          {
+            id: 'we-research-citation',
+            label: 'Research Writing & Citation (HS)',
+            text: 'write a [number]-paragraph research-based essay that integrates evidence from at least [source-count] credible sources, uses [format] citation format consistently, and maintains an academic register throughout',
+            tokens: ['number', 'source-count', 'format'],
+            strand: 'Academic',
+          },
+          {
+            id: 'we-functional-writing',
+            label: 'Functional / Applied Writing (HS)',
+            text: 'compose [number] functional written documents (e.g., formal email, job application cover letter, professional memo) that use appropriate register, format, and error-free conventions',
+            tokens: ['number'],
+            strand: 'Functional',
           },
         ],
       },
 
+      /* ── 3. Executive Functioning / Self-Regulation ─────── */
       executive_functioning: {
         label: 'Executive Functioning / Self-Regulation',
+        conditions: [
+          'given a visual schedule or structured daily agenda',
+          'when provided a self-monitoring checklist and visual timer',
+          'given a co-constructed regulation menu and access to a designated break space',
+          'when a preferred coping tool is available',
+          'in a structured classroom environment with predictable transitions',
+        ],
         templates: [
           {
             id: 'ef-task-initiation',
             label: 'Task Initiation with Organizer',
             text: 'independently utilize a [type] graphic organizer to initiate a [subject] task within [number] minutes of instruction without adult prompting',
             tokens: ['type', 'subject', 'number'],
+            strand: 'Functional',
           },
           {
             id: 'ef-time-management',
             label: 'Time Management & Pacing',
             text: 'use a self-monitoring checklist and visual timer to complete a [number]-step academic task within the allotted [minutes]-minute period, checking off each step upon completion',
             tokens: ['number', 'minutes'],
+            strand: 'Functional',
           },
           {
             id: 'ef-materials-organization',
             label: 'Materials Organization',
             text: 'independently organize materials for [number] class periods per day using a provided binder system, arriving to [percentage]% of targeted classes with all required supplies',
             tokens: ['number', 'percentage'],
+            strand: 'Functional',
           },
           {
             id: 'ef-self-monitoring',
             label: 'On-Task Self-Monitoring',
             text: 'use a self-monitoring interval recording sheet to track and rate on-task behavior during [subject] tasks, achieving a self-reported on-task rate of [percentage]% or higher per session',
             tokens: ['subject', 'percentage'],
+            strand: 'Behavioral',
           },
           {
             id: 'ef-flexible-thinking',
             label: 'Flexible Thinking / Plan Changes',
             text: 'demonstrate flexible thinking by identifying and implementing an alternative strategy when an initial approach is unsuccessful, doing so within [number] minutes and without disruptive behavior',
             tokens: ['number'],
+            strand: 'Behavioral',
           },
           {
             id: 'ef-emotional-regulation',
             label: 'Emotional Regulation — Coping Strategy',
             text: 'independently identify a physiological or emotional trigger and select and apply an appropriate coping strategy from a personalized regulation menu within [number] minutes of experiencing distress',
             tokens: ['number'],
+            strand: 'Behavioral',
           },
         ],
       },
 
+      /* ── 4. Math Reasoning & Problem Solving ────────────── */
       math_reasoning: {
         label: 'Math Reasoning & Problem Solving',
+        conditions: [
+          'given a calculator and a structured problem-solving template',
+          'given a graphic organizer using the read-plan-solve-check framework',
+          'when provided a reference sheet with formulas and vocabulary',
+          'given manipulatives or a number line as a visual support',
+          'when allowed extended time per the IEP accommodation plan',
+        ],
         templates: [
           {
             id: 'mr-word-problems',
             label: 'Multi-Step Word Problems',
             text: 'solve [number]-step word problems involving [operation] using a structured problem-solving framework (read, plan, solve, check), showing all work',
             tokens: ['number', 'operation'],
+            strand: 'Academic',
           },
           {
             id: 'mr-fraction-operations',
             label: 'Fraction Operations',
             text: 'add, subtract, multiply, or divide fractions and mixed numbers with [type] denominators, correctly simplifying answers to lowest terms',
             tokens: ['type'],
+            strand: 'Academic',
           },
           {
             id: 'mr-data-interpretation',
             label: 'Data Interpretation',
             text: 'interpret and analyze data represented in [number] different graphical formats (e.g., bar graph, line plot, circle graph), answering [question-count] comprehension questions per graph',
             tokens: ['number', 'question-count'],
+            strand: 'Academic',
           },
           {
             id: 'mr-algebraic-expressions',
             label: 'Algebraic Expressions & Equations',
             text: 'write, evaluate, and solve one-variable algebraic equations and expressions with [number] operations, identifying and justifying each step in the solution process',
             tokens: ['number'],
+            strand: 'Academic',
           },
         ],
       },
 
+      /* ── 5. Social Communication & Pragmatic Language ───── */
       social_communication: {
         label: 'Social Communication & Pragmatic Language',
+        conditions: [
+          'during a structured peer activity or cooperative learning task',
+          'given a social script or conversation guide',
+          'in a small-group discussion setting with teacher facilitation',
+          'during role-play scenarios with a school counselor or social worker',
+          'in a naturalistic classroom interaction',
+        ],
         templates: [
           {
             id: 'sc-conversation-turns',
             label: 'Conversational Turn-Taking',
             text: 'maintain a [number]-exchange peer conversation on a structured or preferred topic by contributing relevant comments, asking at least [question-count] follow-up questions, and using appropriate eye contact',
             tokens: ['number', 'question-count'],
+            strand: 'Functional',
           },
           {
             id: 'sc-conflict-resolution',
             label: 'Conflict Resolution Script',
             text: 'independently use a [number]-step conflict resolution script to de-escalate and resolve peer disagreements in [setting] settings without adult intervention',
             tokens: ['number', 'setting'],
+            strand: 'Behavioral',
           },
           {
             id: 'sc-perspective-taking',
             label: 'Perspective-Taking',
             text: 'identify the feelings and perspective of a character or peer in [number] social scenarios, explaining at least one situational reason for that perspective in writing or verbally',
             tokens: ['number'],
+            strand: 'Functional',
           },
           {
             id: 'sc-nonverbal-cues',
             label: 'Nonverbal Cue Interpretation',
             text: 'accurately interpret [number] nonverbal communication cues (e.g., facial expression, tone, body language) during structured role-play or classroom interactions, adjusting their response accordingly',
             tokens: ['number'],
+            strand: 'Functional',
           },
         ],
       },
 
+      /* ── 6. Study Skills & Academic Independence ─────────── */
       study_skills: {
         label: 'Study Skills & Academic Independence',
+        conditions: [
+          'given a planner or digital agenda tool',
+          'when provided a structured note-taking template',
+          'given explicit instruction in a target study strategy',
+          'with access to a teacher-provided study guide',
+          'during independent work periods in a resource setting',
+        ],
         templates: [
           {
             id: 'ss-note-taking',
             label: 'Structured Note-Taking',
             text: 'use a [type] note-taking format (e.g., Cornell, outline, two-column) to capture at least [number] key ideas from a [length]-minute lecture or instructional video',
             tokens: ['type', 'number', 'length'],
+            strand: 'Academic',
           },
           {
             id: 'ss-homework-completion',
             label: 'Homework Completion & Tracking',
             text: 'record all assignments in a planner at the end of each class period and submit completed homework for [percentage]% of assigned tasks across a [week-count]-week period',
             tokens: ['percentage', 'week-count'],
+            strand: 'Functional',
           },
           {
             id: 'ss-test-prep',
             label: 'Independent Test Preparation',
             text: 'independently create a study guide or set of [number] flash cards from class notes or a textbook chapter and use them in a self-quizzing routine [frequency] before an assessment',
             tokens: ['number', 'frequency'],
+            strand: 'Academic',
           },
           {
             id: 'ss-help-seeking',
             label: 'Appropriate Help-Seeking',
             text: 'independently request clarification or assistance from a teacher or peer using a self-advocacy script within [number] minutes of encountering academic difficulty, without refusing the task or becoming dysregulated',
             tokens: ['number'],
+            strand: 'Functional',
           },
         ],
       },
-    };
+
+      /* ── 7. Algebra & Pre-Calculus Skills (HS) ──────────── */
+      algebra_precalc: {
+        label: 'Algebra & Pre-Calculus Skills (HS)',
+        conditions: [
+          'given a graphing calculator and a formula reference sheet',
+          'when provided a step-by-step worked example as a model',
+          'given graph paper and a structured problem-solving template',
+          'when allowed to use a calculator for computation but not for conceptual steps',
+          'given a visual anchor chart of algebraic properties',
+        ],
+        templates: [
+          {
+            id: 'alg-linear-equations',
+            label: 'Solving Linear Equations',
+            text: 'solve [number] two-step or multi-step linear equations in one variable, showing all inverse operations and checking solutions by substitution',
+            tokens: ['number'],
+            strand: 'Academic',
+          },
+          {
+            id: 'alg-systems',
+            label: 'Systems of Equations',
+            text: 'solve a system of [number] linear equations using substitution or elimination, interpreting the solution in context of a real-world problem',
+            tokens: ['number'],
+            strand: 'Academic',
+          },
+          {
+            id: 'alg-functions',
+            label: 'Functions & Function Notation',
+            text: 'evaluate and interpret [type] functions (linear, quadratic, or exponential) using function notation, identifying domain, range, and at least [number] key features from a table, graph, or equation',
+            tokens: ['type', 'number'],
+            strand: 'Academic',
+          },
+          {
+            id: 'alg-graphing',
+            label: 'Graphing Linear & Quadratic Functions',
+            text: 'graph [number] [type] functions by identifying the slope and y-intercept (linear) or vertex and axis of symmetry (quadratic) and plotting a minimum of [point-count] accurate points',
+            tokens: ['number', 'type', 'point-count'],
+            strand: 'Academic',
+          },
+          {
+            id: 'alg-inequalities',
+            label: 'Solving & Graphing Inequalities',
+            text: 'solve and graph [number] linear inequalities in one or two variables on a number line or coordinate plane, correctly indicating the solution set with appropriate open/closed endpoints or shading',
+            tokens: ['number'],
+            strand: 'Academic',
+          },
+          {
+            id: 'alg-polynomial-operations',
+            label: 'Polynomial Operations',
+            text: 'add, subtract, and multiply polynomials with [number] or more terms, correctly applying the distributive property and combining like terms without computational error',
+            tokens: ['number'],
+            strand: 'Academic',
+          },
+          {
+            id: 'alg-exponential-growth',
+            label: 'Exponential Growth & Decay',
+            text: 'model and solve [number] real-world problems involving exponential growth or decay by identifying the initial value, growth/decay rate, and interpreting the meaning of the function output in context',
+            tokens: ['number'],
+            strand: 'Academic',
+          },
+          {
+            id: 'alg-statistics',
+            label: 'Data Analysis & Statistics',
+            text: 'calculate and interpret measures of central tendency (mean, median, mode) and spread (range, interquartile range) for a data set of [number] values, and represent the data in an appropriate display',
+            tokens: ['number'],
+            strand: 'Academic',
+          },
+        ],
+      },
+
+      /* ── 8. Transition & Independent Living ──────────────── */
+      transition_independent: {
+        label: 'Transition & Independent Living',
+        conditions: [
+          'given a visual checklist or step-by-step task analysis',
+          'when provided with community-based instruction in a naturalistic setting',
+          'given explicit modeling and at least one guided practice trial',
+          'in a school-based simulation of a real-world environment',
+          'with access to a personal device for navigation or reference',
+        ],
+        templates: [
+          {
+            id: 'tr-personal-finance',
+            label: 'Personal Finance & Budgeting',
+            text: 'create and manage a monthly personal budget using [number] income and expense categories, correctly calculating net income, tracking expenditures, and adjusting the budget when actual spending deviates by more than [percentage]%',
+            tokens: ['number', 'percentage'],
+            strand: 'Transition',
+          },
+          {
+            id: 'tr-banking',
+            label: 'Banking & Financial Transactions',
+            text: 'independently complete [number] banking tasks (e.g., depositing a check, interpreting a bank statement, using a debit card) with [percentage]% accuracy across [trial-count] trials in a school-based or real-world setting',
+            tokens: ['number', 'percentage', 'trial-count'],
+            strand: 'Transition',
+          },
+          {
+            id: 'tr-transportation',
+            label: 'Community Transportation',
+            text: 'independently plan and execute a [number]-leg trip using [transport-type] (e.g., bus, rideshare, walking route), correctly identifying departure time, transfers, and arrival destination without adult prompting',
+            tokens: ['number', 'transport-type'],
+            strand: 'Transition',
+          },
+          {
+            id: 'tr-grocery-meal-prep',
+            label: 'Meal Planning & Grocery Shopping',
+            text: 'independently plan a [number]-day meal plan, create a corresponding grocery list within a [amount]-dollar budget, and purchase items at a store with [percentage]% accuracy across [trial-count] community-based instruction trials',
+            tokens: ['number', 'amount', 'percentage', 'trial-count'],
+            strand: 'Transition',
+          },
+          {
+            id: 'tr-health-appointments',
+            label: 'Health & Appointment Management',
+            text: 'independently schedule, prepare for, and attend [number] medical or community appointments over a [timeframe]-week period, demonstrating knowledge of insurance, co-pay procedures, and appropriate communication with providers',
+            tokens: ['number', 'timeframe'],
+            strand: 'Transition',
+          },
+          {
+            id: 'tr-household-tasks',
+            label: 'Household / Daily Living Tasks',
+            text: 'independently complete a [number]-step household routine (e.g., laundry, cooking a recipe, cleaning a space) using a task analysis checklist with [percentage]% step accuracy across [trial-count] consecutive trials',
+            tokens: ['number', 'percentage', 'trial-count'],
+            strand: 'Transition',
+          },
+          {
+            id: 'tr-digital-literacy',
+            label: 'Digital Literacy & Technology Use',
+            text: 'independently use [number] digital tools or platforms (e.g., email, online forms, job search sites, scheduling apps) to complete real-world tasks with [percentage]% completion accuracy and appropriate digital safety practices',
+            tokens: ['number', 'percentage'],
+            strand: 'Transition',
+          },
+          {
+            id: 'tr-postsecondary-planning',
+            label: 'Post-Secondary Planning & Research',
+            text: 'research and document [number] post-secondary options (e.g., 2-year college, trade program, supported employment) by comparing admission requirements, program costs, and career outcomes, and produce a written [type] plan with [step-count] action steps',
+            tokens: ['number', 'type', 'step-count'],
+            strand: 'Transition',
+          },
+        ],
+      },
+
+      /* ── 9. Vocational & Career Readiness ────────────────── */
+      vocational_career: {
+        label: 'Vocational & Career Readiness',
+        conditions: [
+          'given a job description and a resume template',
+          'during a work-based learning placement or school-sponsored internship',
+          'given explicit role-play practice with performance feedback',
+          'in a school-based business or vocational education setting',
+          'when provided a workplace expectations checklist',
+        ],
+        templates: [
+          {
+            id: 'voc-resume',
+            label: 'Resume & Application Completion',
+            text: 'independently complete a professional resume and [number] job applications that include accurate contact information, work or volunteer history, and a [type] cover letter with fewer than [error-count] mechanical errors',
+            tokens: ['number', 'type', 'error-count'],
+            strand: 'Transition',
+          },
+          {
+            id: 'voc-interview',
+            label: 'Job Interview Skills',
+            text: 'demonstrate job interview readiness by answering [number] common interview questions using a STAR (Situation, Task, Action, Result) response format, maintaining appropriate eye contact and professional tone throughout a simulated interview',
+            tokens: ['number'],
+            strand: 'Transition',
+          },
+          {
+            id: 'voc-workplace-conduct',
+            label: 'Workplace Conduct & Punctuality',
+            text: 'report to a work-based learning placement on time and in appropriate attire for [percentage]% of scheduled shifts over a [week-count]-week period, and comply with all identified workplace expectations as rated by the site supervisor',
+            tokens: ['percentage', 'week-count'],
+            strand: 'Transition',
+          },
+          {
+            id: 'voc-task-completion',
+            label: 'Vocational Task Completion',
+            text: 'complete an assigned vocational task (e.g., [task-type]) using a task analysis checklist with [percentage]% step accuracy across [trial-count] consecutive work sessions, with no more than [prompt-count] adult prompts per session',
+            tokens: ['task-type', 'percentage', 'trial-count', 'prompt-count'],
+            strand: 'Transition',
+          },
+          {
+            id: 'voc-workplace-communication',
+            label: 'Professional Communication with Supervisors',
+            text: 'independently communicate a work-related concern, question, or schedule conflict to a supervisor or employer using a [number]-step professional communication script in [percentage]% of observed opportunities',
+            tokens: ['number', 'percentage'],
+            strand: 'Transition',
+          },
+          {
+            id: 'voc-career-exploration',
+            label: 'Career Cluster Exploration',
+            text: 'research [number] careers within a [cluster] career cluster using school or public resources, documenting required education, average salary, job duties, and a personal interest rating for each, and presenting findings in a [format] format',
+            tokens: ['number', 'cluster', 'format'],
+            strand: 'Transition',
+          },
+        ],
+      },
+
+      /* ── 10. Self-Determination & Self-Advocacy ──────────── */
+      self_determination: {
+        label: 'Self-Determination & Self-Advocacy',
+        conditions: [
+          'when given a structured self-advocacy script or talking guide',
+          'during an IEP meeting or scheduled teacher conference',
+          'given explicit instruction and role-play practice',
+          'in a one-on-one or small-group setting with a trusted adult',
+          'when provided with a disability disclosure script and preparation checklist',
+        ],
+        templates: [
+          {
+            id: 'sd-disability-awareness',
+            label: 'Disability Awareness & Disclosure',
+            text: 'verbally explain their primary disability label, the [number] accommodations listed in their IEP that most support their learning, and at least [detail-count] specific strategies that help them access the general curriculum, to [audience] in a role-play or real-world scenario',
+            tokens: ['number', 'detail-count', 'audience'],
+            strand: 'Functional',
+          },
+          {
+            id: 'sd-iep-participation',
+            label: 'Active IEP Meeting Participation',
+            text: 'actively participate in their IEP meeting by presenting [number] prepared self-assessment statements covering current strengths, areas for growth, and at least [goal-count] post-secondary goal using a structured student-led conference template',
+            tokens: ['number', 'goal-count'],
+            strand: 'Functional',
+          },
+          {
+            id: 'sd-goal-setting',
+            label: 'Personal Goal Setting',
+            text: 'independently write [number] short-term academic or transition goals using a SMART goal framework, identifying the specific target, a measurable criterion, a realistic timeline, and [step-count] action steps for each goal',
+            tokens: ['number', 'step-count'],
+            strand: 'Functional',
+          },
+          {
+            id: 'sd-accommodation-request',
+            label: 'Requesting Accommodations',
+            text: 'independently request [number] IEP accommodations from a general education teacher at the start of a new class or assignment using a written or verbal self-advocacy script, in [percentage]% of observed opportunities',
+            tokens: ['number', 'percentage'],
+            strand: 'Functional',
+          },
+          {
+            id: 'sd-problem-solving',
+            label: 'Independent Problem-Solving',
+            text: 'apply a [number]-step problem-solving process (identify the problem, generate options, evaluate consequences, select and implement a solution, evaluate the outcome) to [scenario-count] academic or social challenges without adult initiation',
+            tokens: ['number', 'scenario-count'],
+            strand: 'Functional',
+          },
+          {
+            id: 'sd-choice-making',
+            label: 'Informed Choice-Making',
+            text: 'demonstrate informed choice-making by independently evaluating [number] options using a structured pros/cons framework and selecting an option aligned with their identified post-secondary goals in [percentage]% of observed decision-making opportunities',
+            tokens: ['number', 'percentage'],
+            strand: 'Functional',
+          },
+        ],
+      },
+
+      /* ── 11. Reading Fluency & Decoding (Secondary) ──────── */
+      reading_fluency_decoding: {
+        label: 'Reading Fluency & Decoding (Secondary)',
+        conditions: [
+          'given a passage at the instructional reading level',
+          'given explicit phonics instruction using an Orton-Gillingham or structured literacy approach',
+          'when provided a multisensory decoding tool or sound wall',
+          'given a decodable text at the [level] level',
+          'when allowed to track text with a finger or ruler',
+        ],
+        templates: [
+          {
+            id: 'flu-oral-reading',
+            label: 'Oral Reading Fluency Rate',
+            text: 'read aloud a grade-equivalent or instructional-level passage of [word-count] words with a reading rate of at least [wpm] words per minute and [percentage]% accuracy, as measured by a timed 1-minute oral reading fluency probe',
+            tokens: ['word-count', 'wpm', 'percentage'],
+            strand: 'Academic',
+          },
+          {
+            id: 'flu-multisyllabic',
+            label: 'Multisyllabic Word Decoding',
+            text: 'decode [number] multisyllabic words of [syllable-count] or more syllables by applying syllable-type division rules (e.g., VC/CV, V/CV, VCle) with [percentage]% accuracy on a word list probe',
+            tokens: ['number', 'syllable-count', 'percentage'],
+            strand: 'Academic',
+          },
+          {
+            id: 'flu-morpheme-analysis',
+            label: 'Morpheme Analysis (Prefixes, Roots, Suffixes)',
+            text: 'identify and use the meaning of [number] Greek or Latin roots, prefixes, or suffixes to determine the meaning of unfamiliar words encountered in grade-level content-area texts',
+            tokens: ['number'],
+            strand: 'Academic',
+          },
+          {
+            id: 'flu-sight-words',
+            label: 'High-Frequency / Irregular Word Recognition',
+            text: 'automatically read [number] high-frequency or irregular words (Tier 2 academic vocabulary list) within [seconds]-second response intervals during a timed word recognition probe, with [percentage]% accuracy',
+            tokens: ['number', 'seconds', 'percentage'],
+            strand: 'Academic',
+          },
+          {
+            id: 'flu-self-correction',
+            label: 'Self-Monitoring & Error Correction',
+            text: 'self-monitor oral reading accuracy by identifying and independently correcting at least [percentage]% of decoding errors during connected text reading without adult prompting, as measured across [trial-count] running records',
+            tokens: ['percentage', 'trial-count'],
+            strand: 'Academic',
+          },
+          {
+            id: 'flu-expression-prosody',
+            label: 'Reading with Expression & Prosody',
+            text: 'read aloud a [level]-level passage with appropriate phrasing, prosody, and expression, receiving a prosody rating of [score] or higher on a [scale]-point scale across [trial-count] consecutive timed readings',
+            tokens: ['level', 'score', 'scale', 'trial-count'],
+            strand: 'Academic',
+          },
+        ],
+      },
+
+    }; // end GOAL_BANK_MATRIX
+
 
     /* ════════════════════════════════════════════════════════
-       UTILITY
+       UTILITY — CORE HELPERS
     ════════════════════════════════════════════════════════ */
-    const $  = id => document.getElementById(id);
-    let currentGoal       = '';
-    let behaviorFromBank  = false;   // tracks whether textarea was loaded from matrix
+    const $ = id => document.getElementById(id);
+
+    let currentGoal      = '';
+    let behaviorFromBank = false; // tracks whether textarea was loaded from matrix
 
     /**
-     * XSS guard — escapes HTML special chars before injecting
-     * user-supplied text into innerHTML.
+     * escapeHtml(str)
+     * XSS guard — escapes HTML special characters before
+     * injecting user-supplied text into innerHTML.
      */
     function escapeHtml(str) {
       return str
@@ -991,9 +1527,9 @@
     function detectUnresolvedTokens(text) {
       const matches = text.match(/\[[^\]]+\]/g);
       if (!matches) return [];
-      // Deduplicate
       return [...new Set(matches)];
     }
+
 
     /* ════════════════════════════════════════════════════════
        GOAL BANK — DOM INITIALIZER
@@ -1010,6 +1546,7 @@
       });
     }
 
+
     /* ════════════════════════════════════════════════════════
        GOAL BANK — CASCADE HANDLERS
     ════════════════════════════════════════════════════════ */
@@ -1023,17 +1560,15 @@
      * the behavior textarea.
      */
     function onCategoryChange() {
-      const categoryKey      = $('skillCategory').value;
-      const templateSelect   = $('behaviorTemplate');
-      const behaviorTextarea = $('behavior');
+      const categoryKey    = $('skillCategory').value;
+      const templateSelect = $('behaviorTemplate');
+      const behaviorTA     = $('behavior');
 
-      // Reset template dropdown
       templateSelect.innerHTML = '';
       templateSelect.disabled  = true;
 
-      // Clear textarea and reset source state
-      behaviorTextarea.value = '';
-      behaviorFromBank       = false;
+      behaviorTA.value = '';
+      behaviorFromBank = false;
       updateBehaviorSourceBadge();
       updateTokenHint('');
 
@@ -1045,13 +1580,11 @@
         return;
       }
 
-      // Add prompt option
       const prompt = document.createElement('option');
       prompt.value       = '';
       prompt.textContent = '— Choose a behavior template —';
       templateSelect.appendChild(prompt);
 
-      // Populate templates for the selected category
       const category = GOAL_BANK_MATRIX[categoryKey];
       category.templates.forEach(tmpl => {
         const opt = document.createElement('option');
@@ -1082,18 +1615,15 @@
         return;
       }
 
-      // Look up the template object
       const category = GOAL_BANK_MATRIX[categoryKey];
       const tmpl     = category.templates.find(t => t.id === templateId);
       if (!tmpl) return;
 
-      // Inject the template text — educator edits from here
       behaviorField.value = tmpl.text;
       behaviorFromBank    = true;
       updateBehaviorSourceBadge();
       updateTokenHint(tmpl.text);
 
-      // Autofocus the textarea so the educator can start editing immediately
       behaviorField.focus();
       behaviorField.setSelectionRange(0, 0);
     }
@@ -1101,22 +1631,19 @@
     /**
      * onBehaviorInput()
      * Fired on every keystroke in the behavior textarea.
-     * If the content was originally from the bank, re-check
-     * whether the educator has diverged and update the source
+     * If the content was originally from the bank, re-checks
+     * whether the educator has diverged and updates the source
      * badge and token hint accordingly.
      */
     function onBehaviorInput() {
       const text = $('behavior').value;
 
-      // If the user typed in the textarea, it's now "custom"
-      // regardless of origin — unless it still matches a bank template.
       if (behaviorFromBank) {
         const categoryKey = $('skillCategory').value;
         const templateId  = $('behaviorTemplate').value;
         if (categoryKey && templateId) {
           const tmpl = GOAL_BANK_MATRIX[categoryKey]?.templates.find(t => t.id === templateId);
           if (tmpl && text !== tmpl.text) {
-            // Content has been edited — it's now a customized derivative
             behaviorFromBank = false;
           }
         }
@@ -1164,9 +1691,10 @@
       }
     }
 
+
     /* ════════════════════════════════════════════════════════
        BEHAVIOR NORMALIZATION
-       ─────────────────────────────────────────────────────────
+       ────────────────────────────────────────────────────────
        Templates are authored WITHOUT a leading "will" because
        generateGoal() prepends "will " before the normalized
        text. This function also handles freeform input where
@@ -1180,8 +1708,7 @@
     function normalizeBehavior(raw) {
       let text = raw.trim();
 
-      // ── Step 1: strip redundant leading phrases ────────
-      // Order matters: longest patterns first.
+      // ── Strip redundant leading phrases (longest patterns first)
       const prefixPatterns = [
         /^(the\s+student\s+will\s+be\s+able\s+to\s+)+/i,
         /^(the\s+student\s+will\s+)+/i,
@@ -1199,16 +1726,17 @@
         }
       }
 
-      // ── Step 2: preserve casing for acronyms / proper nouns
+      // ── Preserve casing for acronyms / proper nouns
       const firstToken   = text.split(/\s+/)[0];
       const isAcronym    = KNOWN_ACRONYMS.has(firstToken);
       const isProperNoun = /^[A-Z][a-zA-Z]/.test(firstToken);
 
       if (isAcronym || isProperNoun) return text;
 
-      // ── Step 3: lowercase only the initial character ──
+      // ── Lowercase only the initial character
       return text.charAt(0).toLowerCase() + text.slice(1);
     }
+
 
     /* ════════════════════════════════════════════════════════
        CORE GOAL GENERATOR
@@ -1221,7 +1749,7 @@
       const accuracy   = $('accuracy').value.trim();
       const evaluation = $('evaluation').value.trim();
 
-      // ── Field validation ─────────────────────────────────
+      // ── Field validation
       const missing = [];
       if (!studentRef) missing.push('Student Reference');
       if (!timeframe)  missing.push('Timeframe');
@@ -1237,10 +1765,10 @@
       }
       msgEl.classList.add('hidden');
 
-      // ── Normalize behavior ───────────────────────────────
+      // ── Normalize behavior
       const behNormalized = normalizeBehavior(behavior);
 
-      // ── Assemble goal lines ──────────────────────────────
+      // ── Assemble goal lines
       const lines = [];
       lines.push(timeframe + ',');
       if (condition) {
@@ -1254,7 +1782,7 @@
 
       currentGoal = lines.join('\n');
 
-      // ── Render output ────────────────────────────────────
+      // ── Render output
       const output    = $('goalOutput');
       const empty     = $('emptyState');
       const container = $('outputContainer');
@@ -1264,7 +1792,7 @@
       empty.style.display = 'none';
       container.classList.add('has-content');
 
-      // ── Token warning inside output ──────────────────────
+      // ── Token warning inside output
       const unresolvedTokens = detectUnresolvedTokens(currentGoal);
       const banner           = $('tokenWarningBanner');
       const bannerList       = $('tokenWarningList');
@@ -1275,7 +1803,7 @@
         banner.classList.remove('visible');
       }
 
-      // ── Component breakdown ──────────────────────────────
+      // ── Component breakdown
       const components = [
         { label: 'Timeframe',   value: timeframe },
         { label: 'Student Ref', value: studentRef },
@@ -1304,6 +1832,7 @@
       container.style.animation = '';
     }
 
+
     /* ════════════════════════════════════════════════════════
        CLIPBOARD COPY
     ════════════════════════════════════════════════════════ */
@@ -1323,7 +1852,7 @@
         container.classList.add('copy-flash');
 
         setTimeout(() => {
-          icon.innerHTML = '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>';
+          icon.innerHTML        = '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>';
           label.textContent     = 'Copy Output';
           btn.style.color       = '';
           btn.style.borderColor = '';
@@ -1352,9 +1881,11 @@
       document.body.removeChild(ta);
     }
 
+
     /* ════════════════════════════════════════════════════════
        M-POWER AI ASYNC SIMULATION
-       Replace the setTimeout block with fetch('/api/mpower-analyze', {...})
+       Replace the setTimeout block with:
+         fetch('/api/mpower-analyze', { body: JSON.stringify({ goal: currentGoal }) })
     ════════════════════════════════════════════════════════ */
     const AI_STATUS_SEQUENCE = [
       { title: 'Analyzing goal structure…',       sub: 'Checking alignment with IDEA measurability standards' },
@@ -1394,21 +1925,20 @@
         }
       }, 1100);
 
-      // Replace this with: const res = await fetch('/api/mpower-analyze', { body: JSON.stringify({ goal: currentGoal }) })
       aiSimTimer = setTimeout(() => {
         clearInterval(cycleStatus);
 
         const spinner = $('aiBtnIcon');
         if (spinner) {
           const newIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-          newIcon.setAttribute('id',            'aiBtnIcon');
-          newIcon.setAttribute('width',         '14');
-          newIcon.setAttribute('height',        '14');
-          newIcon.setAttribute('viewBox',       '0 0 24 24');
-          newIcon.setAttribute('fill',          'none');
-          newIcon.setAttribute('stroke',        'currentColor');
-          newIcon.setAttribute('stroke-width',  '2');
-          newIcon.setAttribute('stroke-linecap','round');
+          newIcon.setAttribute('id',             'aiBtnIcon');
+          newIcon.setAttribute('width',          '14');
+          newIcon.setAttribute('height',         '14');
+          newIcon.setAttribute('viewBox',        '0 0 24 24');
+          newIcon.setAttribute('fill',           'none');
+          newIcon.setAttribute('stroke',         'currentColor');
+          newIcon.setAttribute('stroke-width',   '2');
+          newIcon.setAttribute('stroke-linecap', 'round');
           newIcon.setAttribute('stroke-linejoin','round');
           newIcon.innerHTML = '<path d="M12 3l1.88 5.76a1 1 0 00.95.69H21l-5 3.63a1 1 0 00-.36 1.12L17.52 20 12 16.27 6.48 20l1.88-5.8a1 1 0 00-.36-1.12L3 9.45h6.17a1 1 0 00.95-.69z"/>';
           spinner.replaceWith(newIcon);
@@ -1423,6 +1953,7 @@
       }, 4500);
     }
 
+
     /* ════════════════════════════════════════════════════════
        KEYBOARD SHORTCUTS
     ════════════════════════════════════════════════════════ */
@@ -1432,10 +1963,12 @@
       });
     });
 
+
     /* ════════════════════════════════════════════════════════
        BOOT
     ════════════════════════════════════════════════════════ */
     document.addEventListener('DOMContentLoaded', initGoalBank);
+
   </script>
 </body>
 </html>
