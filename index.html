@@ -1,0 +1,1441 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IEP Goal Architect — M-Powered Education</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            surface: {
+              900: '#0f1117',
+              800: '#171b26',
+              700: '#1e2335',
+              600: '#252c42',
+              500: '#2e3650',
+            },
+            accent: {
+              DEFAULT: '#6c8fff',
+              soft:    '#3b5bdb',
+              glow:    'rgba(108,143,255,0.18)',
+            },
+            success: '#34d399',
+          },
+          fontFamily: {
+            sans: ['"Inter"', 'system-ui', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          boxShadow: {
+            panel: '0 4px 32px 0 rgba(0,0,0,0.45)',
+            glow:  '0 0 0 3px rgba(108,143,255,0.35)',
+          },
+        }
+      }
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <style>
+    /* ── Base reset ───────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background-color: #0f1117;
+      color: #c9d1e8;
+      font-family: 'Inter', system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Custom scrollbar ─────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #171b26; }
+    ::-webkit-scrollbar-thumb { background: #2e3650; border-radius: 3px; }
+
+    /* ── Form field base ──────────────────────────────────── */
+    .field {
+      width: 100%;
+      background: #1e2335;
+      border: 1px solid #2e3650;
+      color: #c9d1e8;
+      border-radius: 8px;
+      padding: 0.55rem 0.85rem;
+      font-size: 0.875rem;
+      font-family: 'Inter', sans-serif;
+      outline: none;
+      transition: border-color .18s, box-shadow .18s;
+    }
+    .field:focus {
+      border-color: #6c8fff;
+      box-shadow: 0 0 0 3px rgba(108,143,255,0.22);
+    }
+    .field::placeholder { color: #4a5578; }
+    .field:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    select.field {
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%234a5578' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 0.85rem center;
+      padding-right: 2.25rem;
+      cursor: pointer;
+    }
+    select.field:disabled { cursor: not-allowed; }
+    textarea.field { resize: vertical; min-height: 90px; line-height: 1.6; }
+
+    /* ── Field label / hint ───────────────────────────────── */
+    .field-label {
+      display: block;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #6c8fff;
+      margin-bottom: 0.4rem;
+    }
+    .field-hint {
+      font-size: 0.72rem;
+      color: #4a5578;
+      margin-top: 0.3rem;
+    }
+
+    /* ── Token pill highlight inside textarea ─────────────── */
+    /*
+     * The textarea itself can't render rich highlighting, so we
+     * surface token warnings through the hint line instead.
+     * The .token-warning class styles that hint when unresolved
+     * [token] placeholders are detected in the behavior value.
+     */
+    .token-warning {
+      color: #f59e0b;
+      font-weight: 600;
+    }
+    .token-warning svg {
+      display: inline;
+      vertical-align: text-bottom;
+      margin-right: 0.2rem;
+    }
+
+    /* ── Goal Bank selection connector arrow ──────────────── */
+    /*
+     * A subtle chevron-flow glyph between category → template
+     * dropdowns to signal the cascade relationship.
+     */
+    .cascade-connector {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #2e3650;
+      padding: 0.15rem 0;
+      font-size: 0.8rem;
+      user-select: none;
+    }
+
+    /* ── Goal Bank source badge on textarea ──────────────── */
+    .source-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.28rem;
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      border-radius: 4px;
+      padding: 0.12rem 0.45rem;
+      transition: opacity .2s;
+    }
+    .source-badge.from-bank {
+      color: #6c8fff;
+      background: rgba(108,143,255,0.1);
+      border: 1px solid rgba(108,143,255,0.25);
+    }
+    .source-badge.from-custom {
+      color: #34d399;
+      background: rgba(52,211,153,0.08);
+      border: 1px solid rgba(52,211,153,0.2);
+    }
+
+    /* ── Horizontal rule ──────────────────────────────────── */
+    .section-divider {
+      border: none;
+      border-top: 1px solid #252c42;
+      margin: 1.25rem 0;
+    }
+
+    /* ── Goal output text ─────────────────────────────────── */
+    #goalOutput {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.92rem;
+      line-height: 1.75;
+      color: #e2e8f8;
+      white-space: pre-wrap;
+      word-break: break-word;
+      margin: 0;
+    }
+
+    /* ── Output container states ──────────────────────────── */
+    #outputContainer {
+      background: #171b26;
+      border: 1.5px solid #252c42;
+      border-radius: 12px;
+      min-height: 140px;
+      padding: 1.25rem 1.5rem;
+      transition: border-color .2s, box-shadow .2s;
+      position: relative;
+    }
+    #outputContainer.has-content {
+      border-color: #3b5bdb;
+      box-shadow: 0 0 0 2px rgba(108,143,255,0.10), 0 4px 20px 0 rgba(0,0,0,0.35);
+    }
+
+    /* ── Token warning banner inside output ──────────────── */
+    #tokenWarningBanner {
+      display: none;
+      margin-top: 0.85rem;
+      background: rgba(245,158,11,0.08);
+      border: 1px solid rgba(245,158,11,0.3);
+      border-radius: 8px;
+      padding: 0.6rem 0.9rem;
+      font-size: 0.78rem;
+      color: #f59e0b;
+      line-height: 1.5;
+    }
+    #tokenWarningBanner.visible { display: block; }
+
+    /* ── Empty state overlay ──────────────────────────────── */
+    #emptyState {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      gap: 0.5rem;
+      text-align: center;
+    }
+    #emptyState svg { opacity: 0.18; }
+    #emptyState p { color: #4a5578; font-size: 0.8rem; line-height: 1.55; margin: 0; }
+
+    /* ── Primary action button ────────────────────────────── */
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      background: linear-gradient(135deg, #3b5bdb 0%, #6c8fff 100%);
+      color: #fff;
+      font-weight: 600;
+      font-size: 0.875rem;
+      border: none;
+      border-radius: 9px;
+      padding: 0.7rem 1.35rem;
+      cursor: pointer;
+      box-shadow: 0 2px 12px rgba(60,91,219,0.4);
+      transition: transform .12s, box-shadow .12s, filter .12s;
+      white-space: nowrap;
+    }
+    .btn-primary:hover  { filter: brightness(1.1); box-shadow: 0 4px 18px rgba(60,91,219,0.55); }
+    .btn-primary:active { transform: scale(.97); }
+    .btn-primary:disabled { opacity: .45; cursor: not-allowed; filter: none; }
+
+    /* ── Secondary / ghost button ─────────────────────────── */
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      background: #1e2335;
+      color: #8fa0cc;
+      font-weight: 500;
+      font-size: 0.8rem;
+      border: 1px solid #2e3650;
+      border-radius: 8px;
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      transition: background .12s, color .12s, border-color .12s;
+      white-space: nowrap;
+    }
+    .btn-secondary:hover { background: #252c42; color: #c9d1e8; border-color: #6c8fff; }
+    .btn-secondary:disabled { opacity: .35; cursor: not-allowed; }
+
+    /* ── M-Power AI async button variant ─────────────────── */
+    .btn-ai {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      background: #1e2335;
+      color: #a78bfa;
+      font-weight: 600;
+      font-size: 0.875rem;
+      border: 1px solid rgba(167,139,250,0.35);
+      border-radius: 9px;
+      padding: 0.7rem 1.35rem;
+      cursor: pointer;
+      transition: background .15s, border-color .15s, color .15s, box-shadow .15s;
+      white-space: nowrap;
+    }
+    .btn-ai:hover {
+      background: rgba(167,139,250,0.08);
+      border-color: rgba(167,139,250,0.6);
+      box-shadow: 0 0 16px rgba(167,139,250,0.18);
+    }
+    .btn-ai:active { transform: scale(.97); }
+    .btn-ai:disabled { opacity: .45; cursor: not-allowed; }
+
+    /* ── Spinner animation ────────────────────────────────── */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(167,139,250,0.25);
+      border-top-color: #a78bfa;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+
+    /* ── Pulse dot for AI loading label ──────────────────── */
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.35; }
+    }
+    .pulse-dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #a78bfa;
+      animation: pulse-dot 1.1s ease-in-out infinite;
+      flex-shrink: 0;
+    }
+
+    /* ── Copy flash ───────────────────────────────────────── */
+    @keyframes flashGreen {
+      0%   { box-shadow: 0 0 0 2px rgba(52,211,153,0.0); }
+      30%  { box-shadow: 0 0 0 4px rgba(52,211,153,0.45); }
+      100% { box-shadow: 0 0 0 2px rgba(52,211,153,0.0); }
+    }
+    .copy-flash { animation: flashGreen 0.7s ease forwards; }
+
+    /* ── FERPA badge ──────────────────────────────────────── */
+    .ferpa-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      color: #34d399;
+      border: 1px solid rgba(52,211,153,0.3);
+      border-radius: 20px;
+      padding: 0.22rem 0.65rem;
+      background: rgba(52,211,153,0.07);
+      flex-shrink: 0;
+    }
+
+    /* ── Responsive two-column layout ─────────────────────── */
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      align-items: start;
+    }
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+    }
+
+    /* ── Button row inside input panel ───────────────────── */
+    .btn-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.6rem;
+    }
+    @media (max-width: 540px) {
+      .btn-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body class="bg-surface-900 text-slate-300 font-sans antialiased min-h-screen">
+
+  <!-- ════════════════════════════════════════════════════════
+       HEADER
+  ═══════════════════════════════════════════════════════════ -->
+  <header class="bg-surface-800 border-b border-surface-700">
+    <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between flex-wrap gap-3">
+
+      <!-- Wordmark + icon -->
+      <div class="flex items-center gap-3.5">
+        <div class="w-9 h-9 rounded-[9px] flex items-center justify-center flex-shrink-0"
+             style="background:linear-gradient(135deg,#3b5bdb,#6c8fff);">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff"
+               stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 20h9"/>
+            <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-[1.05rem] font-bold text-slate-100 tracking-tight leading-none mb-0.5">
+            IEP Goal Architect
+          </h1>
+          <p class="text-[0.72rem] text-surface-500 leading-none">
+            Individualized Education Program · Goal Builder
+          </p>
+        </div>
+      </div>
+
+      <!-- FERPA badge -->
+      <span class="ferpa-badge">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="11" width="18" height="11" rx="2"/>
+          <path d="M7 11V7a5 5 0 0110 0v4"/>
+        </svg>
+        FERPA · Local Processing Only
+      </span>
+
+    </div>
+  </header>
+
+  <!-- ════════════════════════════════════════════════════════
+       MAIN
+  ═══════════════════════════════════════════════════════════ -->
+  <main class="max-w-6xl mx-auto px-6 py-8">
+
+    <!-- Page intro -->
+    <div class="mb-6">
+      <h2 class="text-[0.78rem] font-semibold tracking-[0.1em] uppercase text-accent mb-1">
+        Goal Components
+      </h2>
+      <p class="text-[0.85rem] text-surface-500">
+        All data stays on your device. No information is transmitted externally.
+      </p>
+    </div>
+
+    <div class="layout">
+
+      <!-- ══════════════════════════════════════════════════
+           LEFT — Input Panel
+      ═══════════════════════════════════════════════════════ -->
+      <section class="bg-surface-800 border border-surface-700 rounded-2xl p-6 shadow-panel">
+
+        <!-- ── Student Reference ──────────────────────────── -->
+        <div class="mb-4">
+          <label class="field-label" for="studentRef">Student Reference</label>
+          <input id="studentRef" class="field" type="text" maxlength="8"
+                 placeholder="e.g. J.D." autocomplete="off" spellcheck="false" />
+          <p class="field-hint">Use initials only — never a full name (FERPA)</p>
+        </div>
+
+        <hr class="section-divider" />
+
+        <!-- ── Timeframe ──────────────────────────────────── -->
+        <div class="mb-4">
+          <label class="field-label" for="timeframe">Timeframe</label>
+          <select id="timeframe" class="field">
+            <option value="">— Select timeframe —</option>
+            <option value="By the end of the IEP period">By the end of the IEP period</option>
+            <option value="Within 36 weeks">Within 36 weeks</option>
+            <option value="By the end of the school year">By the end of the school year</option>
+            <option value="Within 9 weeks">Within 9 weeks</option>
+            <option value="Within 6 months">Within 6 months</option>
+            <option value="By the next annual review">By the next annual review</option>
+          </select>
+        </div>
+
+        <!-- ── Condition ──────────────────────────────────── -->
+        <div class="mb-4">
+          <label class="field-label" for="condition">Condition</label>
+          <input id="condition" class="field" type="text"
+                 placeholder="e.g. given a grade-level reading passage" autocomplete="off" />
+          <p class="field-hint">The context or materials provided to the student</p>
+        </div>
+
+        <hr class="section-divider" />
+
+        <!-- ══════════════════════════════════════════════════
+             GOAL BANK MATRIX — Tiered Skill Selection
+             ─────────────────────────────────────────────────
+             Tier 1: Skill Category   (keys from GOAL_BANK_MATRIX)
+             Tier 2: Behavior Template (templates[category])
+             Tier 3: Behavior textarea (auto-populated, editable)
+        ═══════════════════════════════════════════════════════ -->
+
+        <!-- Skill Category -->
+        <div class="mb-2">
+          <label class="field-label" for="skillCategory">Skill Category</label>
+          <select id="skillCategory" class="field" onchange="onCategoryChange()">
+            <option value="">— Select a skill category —</option>
+            <!-- Options injected by initGoalBank() -->
+          </select>
+          <p class="field-hint">Choose a domain to load behavior templates</p>
+        </div>
+
+        <!-- Cascade connector -->
+        <div class="cascade-connector">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </div>
+
+        <!-- Behavior Template -->
+        <div class="mb-3">
+          <label class="field-label" for="behaviorTemplate">Behavior Template</label>
+          <select id="behaviorTemplate" class="field" onchange="onTemplateChange()" disabled>
+            <option value="">— Select skill category first —</option>
+          </select>
+          <p class="field-hint">Templates use <span class="text-accent font-semibold">[token]</span> placeholders — replace them in the editor below</p>
+        </div>
+
+        <!-- Behavior textarea — populated from template, fully editable -->
+        <div class="mb-1">
+          <div class="flex items-center justify-between mb-1.5">
+            <label class="field-label mb-0" for="behavior">Target Skill / Behavior</label>
+            <span id="behaviorSourceBadge" class="source-badge from-custom hidden">
+              <!-- content set by JS -->
+            </span>
+          </div>
+          <textarea id="behavior" class="field font-mono text-[0.82rem]"
+            placeholder="Select a template above, or type a custom behavior here…"
+            oninput="onBehaviorInput()"></textarea>
+          <!-- Token resolution hint — shown when [token] placeholders remain -->
+          <p id="tokenHint" class="field-hint hidden">
+            <span class="token-warning">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+              Replace all <code class="text-amber-400 text-[0.72rem]">[token]</code> placeholders before generating
+            </span>
+          </p>
+          <p id="behaviorHint" class="field-hint">Observable, measurable action the student will perform</p>
+        </div>
+
+        <hr class="section-divider" />
+
+        <!-- ── Accuracy Threshold ─────────────────────────── -->
+        <div class="mb-4">
+          <label class="field-label" for="accuracy">Accuracy / Criterion</label>
+          <input id="accuracy" class="field" type="text"
+                 placeholder="e.g. 80% accuracy" autocomplete="off" />
+          <p class="field-hint">Quantifiable performance standard</p>
+        </div>
+
+        <!-- ── Consistency / Evaluation ───────────────────── -->
+        <div class="mb-6">
+          <label class="field-label" for="evaluation">Consistency / Evaluation</label>
+          <select id="evaluation" class="field">
+            <option value="">— Select evaluation method —</option>
+            <option value="as measured by teacher observation across 3 consecutive trials">
+              across 3 consecutive trials (teacher observation)
+            </option>
+            <option value="as measured by curriculum-based assessment on 4 out of 5 opportunities">
+              4 out of 5 opportunities (CBA)
+            </option>
+            <option value="as measured by weekly progress monitoring data over 6 consecutive sessions">
+              6 consecutive sessions (weekly progress monitoring)
+            </option>
+            <option value="as measured by work samples collected over 4 weeks">
+              work samples over 4 weeks
+            </option>
+            <option value="as measured by direct observation across 3 different settings">
+              direct observation across 3 settings
+            </option>
+            <option value="as measured by standardized assessment scoring at or above grade level">
+              standardized assessment at/above grade level
+            </option>
+          </select>
+        </div>
+
+        <!-- ── Validation message ─────────────────────────── -->
+        <div id="validationMsg"
+             class="hidden mb-4 bg-red-950/40 border border-red-700/40 rounded-lg px-3.5 py-2.5 text-[0.8rem] text-red-400">
+        </div>
+
+        <!-- ── Button row ─────────────────────────────────── -->
+        <div class="btn-row">
+
+          <!-- Generate Goal Statement -->
+          <button class="btn-primary" id="generateBtn" onclick="generateGoal()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+            </svg>
+            <span>Generate Goal</span>
+          </button>
+
+          <!-- Analyze with M-Power AI -->
+          <button class="btn-ai" id="aiBtn" onclick="simulateAiAnalysis()">
+            <svg id="aiBtnIcon" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3l1.88 5.76a1 1 0 00.95.69H21l-5 3.63a1 1 0 00-.36 1.12L17.52 20 12 16.27 6.48 20l1.88-5.8a1 1 0 00-.36-1.12L3 9.45h6.17a1 1 0 00.95-.69z"/>
+            </svg>
+            <span id="aiBtnLabel">M-Power AI</span>
+          </button>
+
+        </div>
+
+        <!-- AI status bar (hidden until loading) -->
+        <div id="aiStatusBar"
+             class="hidden mt-3 flex items-center gap-2.5 bg-surface-700 border border-[rgba(167,139,250,0.2)] rounded-lg px-3.5 py-2.5">
+          <div class="spinner"></div>
+          <div class="flex-1 min-w-0">
+            <p class="text-[0.75rem] font-semibold text-[#a78bfa] leading-none mb-0.5" id="aiStatusTitle">
+              Analyzing goal structure…
+            </p>
+            <p class="text-[0.68rem] text-surface-500 leading-none" id="aiStatusSub">
+              Checking alignment with IDEA measurability standards
+            </p>
+          </div>
+          <div class="pulse-dot"></div>
+        </div>
+
+      </section>
+
+      <!-- ══════════════════════════════════════════════════
+           RIGHT — Output Panel
+      ═══════════════════════════════════════════════════════ -->
+      <section class="sticky top-6">
+
+        <!-- Main output card -->
+        <div class="bg-surface-800 border border-surface-700 rounded-2xl p-6 shadow-panel">
+
+          <!-- Output header row -->
+          <div class="flex items-start justify-between flex-wrap gap-3 mb-4">
+            <div>
+              <h2 class="text-[0.78rem] font-semibold tracking-[0.1em] uppercase text-accent leading-none mb-1">
+                Generated Goal
+              </h2>
+              <p class="text-[0.72rem] text-surface-500 leading-none">
+                Review before adding to the student's IEP
+              </p>
+            </div>
+            <button class="btn-secondary" id="copyBtn" onclick="copyGoal()" disabled>
+              <svg id="copyIcon" width="13" height="13" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2"/>
+                <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+              </svg>
+              <span id="copyLabel">Copy Output</span>
+            </button>
+          </div>
+
+          <!-- Output container -->
+          <div id="outputContainer">
+            <!-- Empty state -->
+            <div id="emptyState">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#6c8fff"
+                   stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 20h9"/>
+                <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
+              </svg>
+              <p>
+                Fill in the components and click<br/>
+                <strong class="text-accent">Generate Goal Statement</strong>
+              </p>
+            </div>
+            <!-- Generated goal text -->
+            <p id="goalOutput" class="hidden"></p>
+
+            <!-- Token placeholder warning inside output -->
+            <div id="tokenWarningBanner">
+              <strong>Unresolved placeholders detected:</strong>
+              <span id="tokenWarningList"></span><br/>
+              Replace each <code class="text-amber-300">[token]</code> in the behavior editor before sharing this goal.
+            </div>
+          </div>
+
+          <!-- Component breakdown (revealed post-generation) -->
+          <div id="breakdown" class="hidden mt-5">
+            <hr class="section-divider mt-0" />
+            <p class="text-[0.72rem] font-semibold tracking-[0.08em] uppercase text-surface-500 mb-3">
+              Component Breakdown
+            </p>
+            <div id="breakdownItems" class="flex flex-col gap-1.5"></div>
+          </div>
+
+          <!-- Footer notice -->
+          <div class="mt-5 pt-4 border-t border-surface-700 flex items-start gap-2">
+            <svg class="flex-shrink-0 mt-px" width="13" height="13" viewBox="0 0 24 24"
+                 fill="none" stroke="#4a5578" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <p class="text-[0.72rem] text-surface-500 leading-relaxed m-0">
+              This tool generates goal language locally. Always review with a qualified
+              special education professional before finalizing any IEP document.
+            </p>
+          </div>
+
+        </div>
+
+        <!-- Goal formula quick-reference card -->
+        <div class="bg-surface-800 border border-surface-700 rounded-xl px-5 py-4 mt-3">
+          <p class="text-[0.72rem] font-semibold tracking-[0.08em] uppercase text-surface-500 mb-2">
+            Goal Formula
+          </p>
+          <p class="text-[0.78rem] font-mono text-accent leading-[1.9] m-0">
+            [Timeframe],<br/>
+            [Student] [Condition]<br/>
+            [Behavior]<br/>
+            with [Criterion]<br/>
+            [Evaluation]
+          </p>
+        </div>
+
+        <!-- Goal Bank legend card -->
+        <div class="bg-surface-800 border border-surface-700 rounded-xl px-5 py-4 mt-3">
+          <p class="text-[0.72rem] font-semibold tracking-[0.08em] uppercase text-surface-500 mb-2.5">
+            Behavior Source
+          </p>
+          <div class="flex flex-col gap-2">
+            <div class="flex items-center gap-2 text-[0.75rem] text-slate-400">
+              <span class="source-badge from-bank">Goal Bank</span>
+              Template loaded from the matrix — edit tokens in the textarea
+            </div>
+            <div class="flex items-center gap-2 text-[0.75rem] text-slate-400">
+              <span class="source-badge from-custom">Custom</span>
+              Free-form text entered directly
+            </div>
+          </div>
+        </div>
+
+      </section>
+    </div>
+  </main>
+
+  <!-- ════════════════════════════════════════════════════════
+       JAVASCRIPT ENGINE
+  ═══════════════════════════════════════════════════════════ -->
+  <script>
+    'use strict';
+
+    /* ════════════════════════════════════════════════════════
+       GOAL BANK MATRIX
+       ─────────────────────────────────────────────────────────
+       Schema:
+         GOAL_BANK_MATRIX = {
+           [categoryKey: string]: {
+             label: string,          // display name for the category
+             templates: [
+               {
+                 id: string,         // stable identifier (kebab-case)
+                 label: string,      // short display label for <option>
+                 text: string,       // full behavior string with [token] placeholders
+                 tokens: string[],   // list of placeholder names present in text
+               }
+             ]
+           }
+         }
+
+       Token convention: [token] — lowercase, descriptive, wrapped in brackets.
+       The normalizeBehavior() function strips leading "will" prefixes because
+       generateGoal() re-inserts "will " before the normalized text.
+       Therefore all templates are authored WITHOUT a leading "will" prefix
+       so they compose cleanly: "[Student] will [template text]".
+    ════════════════════════════════════════════════════════ */
+    const GOAL_BANK_MATRIX = {
+
+      reading_comprehension: {
+        label: 'Reading Comprehension',
+        templates: [
+          {
+            id: 'rc-main-idea',
+            label: 'Main Idea + Supporting Details',
+            text: 'identify the main idea and [number] supporting details in a [level]-level informational text with minimal prompting',
+            tokens: ['number', 'level'],
+          },
+          {
+            id: 'rc-inference',
+            label: 'Text-Based Inference',
+            text: 'make [number] text-based inferences using explicit evidence from a [level]-level literary or informational passage',
+            tokens: ['number', 'level'],
+          },
+          {
+            id: 'rc-vocab-context',
+            label: 'Vocabulary in Context',
+            text: 'use context clues to determine the meaning of [number] unfamiliar grade-level vocabulary words within a reading passage',
+            tokens: ['number'],
+          },
+          {
+            id: 'rc-text-structure',
+            label: 'Text Structure Identification',
+            text: 'identify and label the text structure (e.g., cause/effect, compare/contrast, sequence) of a [level]-level expository passage and explain its purpose in writing',
+            tokens: ['level'],
+          },
+          {
+            id: 'rc-summarize',
+            label: 'Oral / Written Summary',
+            text: 'produce an oral or written summary of a [level]-level text that includes the central idea, at least [number] key details, and an appropriate conclusion without including personal opinions',
+            tokens: ['level', 'number'],
+          },
+          {
+            id: 'rc-author-purpose',
+            label: "Author's Purpose & Point of View",
+            text: "identify the author's stated or implied purpose and point of view in a [level]-level text, citing at least [number] pieces of textual evidence to support their response",
+            tokens: ['level', 'number'],
+          },
+        ],
+      },
+
+      written_expression: {
+        label: 'Written Expression',
+        templates: [
+          {
+            id: 'we-paragraph',
+            label: 'Structured Paragraph Writing',
+            text: 'compose a structured [number]-sentence paragraph that includes a topic sentence, [detail-count] supporting details, and a concluding sentence using correct capitalization and end punctuation',
+            tokens: ['number', 'detail-count'],
+          },
+          {
+            id: 'we-essay',
+            label: 'Multi-Paragraph Essay',
+            text: 'compose a [number]-paragraph [type] essay that includes an introductory paragraph with a thesis, body paragraphs with transitional phrases, and a concluding paragraph demonstrating correct mechanics',
+            tokens: ['number', 'type'],
+          },
+          {
+            id: 'we-sentence-combining',
+            label: 'Sentence Combining',
+            text: 'combine [number] simple sentences into compound or complex sentences using appropriate coordinating or subordinating conjunctions with correct punctuation',
+            tokens: ['number'],
+          },
+          {
+            id: 'we-revise-edit',
+            label: 'Revise & Edit for Conventions',
+            text: 'revise and edit a [length]-word writing sample for [number] targeted mechanical errors (e.g., subject-verb agreement, comma usage, spelling) using a provided checklist',
+            tokens: ['length', 'number'],
+          },
+          {
+            id: 'we-planning-organizer',
+            label: 'Pre-Writing with Graphic Organizer',
+            text: 'independently complete a [type] graphic organizer to plan a writing piece prior to drafting, including a thesis, at least [number] supporting ideas, and supporting evidence for each',
+            tokens: ['type', 'number'],
+          },
+          {
+            id: 'we-opinion-argument',
+            label: 'Opinion / Argument Writing',
+            text: 'write a [number]-paragraph opinion or argument piece that states a clear claim, provides [evidence-count] pieces of text-based evidence, addresses a counterargument, and closes with a restated position',
+            tokens: ['number', 'evidence-count'],
+          },
+        ],
+      },
+
+      executive_functioning: {
+        label: 'Executive Functioning / Self-Regulation',
+        templates: [
+          {
+            id: 'ef-task-initiation',
+            label: 'Task Initiation with Organizer',
+            text: 'independently utilize a [type] graphic organizer to initiate a [subject] task within [number] minutes of instruction without adult prompting',
+            tokens: ['type', 'subject', 'number'],
+          },
+          {
+            id: 'ef-time-management',
+            label: 'Time Management & Pacing',
+            text: 'use a self-monitoring checklist and visual timer to complete a [number]-step academic task within the allotted [minutes]-minute period, checking off each step upon completion',
+            tokens: ['number', 'minutes'],
+          },
+          {
+            id: 'ef-materials-organization',
+            label: 'Materials Organization',
+            text: 'independently organize materials for [number] class periods per day using a provided binder system, arriving to [percentage]% of targeted classes with all required supplies',
+            tokens: ['number', 'percentage'],
+          },
+          {
+            id: 'ef-self-monitoring',
+            label: 'On-Task Self-Monitoring',
+            text: 'use a self-monitoring interval recording sheet to track and rate on-task behavior during [subject] tasks, achieving a self-reported on-task rate of [percentage]% or higher per session',
+            tokens: ['subject', 'percentage'],
+          },
+          {
+            id: 'ef-flexible-thinking',
+            label: 'Flexible Thinking / Plan Changes',
+            text: 'demonstrate flexible thinking by identifying and implementing an alternative strategy when an initial approach is unsuccessful, doing so within [number] minutes and without disruptive behavior',
+            tokens: ['number'],
+          },
+          {
+            id: 'ef-emotional-regulation',
+            label: 'Emotional Regulation — Coping Strategy',
+            text: 'independently identify a physiological or emotional trigger and select and apply an appropriate coping strategy from a personalized regulation menu within [number] minutes of experiencing distress',
+            tokens: ['number'],
+          },
+        ],
+      },
+
+      math_reasoning: {
+        label: 'Math Reasoning & Problem Solving',
+        templates: [
+          {
+            id: 'mr-word-problems',
+            label: 'Multi-Step Word Problems',
+            text: 'solve [number]-step word problems involving [operation] using a structured problem-solving framework (read, plan, solve, check), showing all work',
+            tokens: ['number', 'operation'],
+          },
+          {
+            id: 'mr-fraction-operations',
+            label: 'Fraction Operations',
+            text: 'add, subtract, multiply, or divide fractions and mixed numbers with [type] denominators, correctly simplifying answers to lowest terms',
+            tokens: ['type'],
+          },
+          {
+            id: 'mr-data-interpretation',
+            label: 'Data Interpretation',
+            text: 'interpret and analyze data represented in [number] different graphical formats (e.g., bar graph, line plot, circle graph), answering [question-count] comprehension questions per graph',
+            tokens: ['number', 'question-count'],
+          },
+          {
+            id: 'mr-algebraic-expressions',
+            label: 'Algebraic Expressions & Equations',
+            text: 'write, evaluate, and solve one-variable algebraic equations and expressions with [number] operations, identifying and justifying each step in the solution process',
+            tokens: ['number'],
+          },
+        ],
+      },
+
+      social_communication: {
+        label: 'Social Communication & Pragmatic Language',
+        templates: [
+          {
+            id: 'sc-conversation-turns',
+            label: 'Conversational Turn-Taking',
+            text: 'maintain a [number]-exchange peer conversation on a structured or preferred topic by contributing relevant comments, asking at least [question-count] follow-up questions, and using appropriate eye contact',
+            tokens: ['number', 'question-count'],
+          },
+          {
+            id: 'sc-conflict-resolution',
+            label: 'Conflict Resolution Script',
+            text: 'independently use a [number]-step conflict resolution script to de-escalate and resolve peer disagreements in [setting] settings without adult intervention',
+            tokens: ['number', 'setting'],
+          },
+          {
+            id: 'sc-perspective-taking',
+            label: 'Perspective-Taking',
+            text: 'identify the feelings and perspective of a character or peer in [number] social scenarios, explaining at least one situational reason for that perspective in writing or verbally',
+            tokens: ['number'],
+          },
+          {
+            id: 'sc-nonverbal-cues',
+            label: 'Nonverbal Cue Interpretation',
+            text: 'accurately interpret [number] nonverbal communication cues (e.g., facial expression, tone, body language) during structured role-play or classroom interactions, adjusting their response accordingly',
+            tokens: ['number'],
+          },
+        ],
+      },
+
+      study_skills: {
+        label: 'Study Skills & Academic Independence',
+        templates: [
+          {
+            id: 'ss-note-taking',
+            label: 'Structured Note-Taking',
+            text: 'use a [type] note-taking format (e.g., Cornell, outline, two-column) to capture at least [number] key ideas from a [length]-minute lecture or instructional video',
+            tokens: ['type', 'number', 'length'],
+          },
+          {
+            id: 'ss-homework-completion',
+            label: 'Homework Completion & Tracking',
+            text: 'record all assignments in a planner at the end of each class period and submit completed homework for [percentage]% of assigned tasks across a [week-count]-week period',
+            tokens: ['percentage', 'week-count'],
+          },
+          {
+            id: 'ss-test-prep',
+            label: 'Independent Test Preparation',
+            text: 'independently create a study guide or set of [number] flash cards from class notes or a textbook chapter and use them in a self-quizzing routine [frequency] before an assessment',
+            tokens: ['number', 'frequency'],
+          },
+          {
+            id: 'ss-help-seeking',
+            label: 'Appropriate Help-Seeking',
+            text: 'independently request clarification or assistance from a teacher or peer using a self-advocacy script within [number] minutes of encountering academic difficulty, without refusing the task or becoming dysregulated',
+            tokens: ['number'],
+          },
+        ],
+      },
+    };
+
+    /* ════════════════════════════════════════════════════════
+       UTILITY
+    ════════════════════════════════════════════════════════ */
+    const $  = id => document.getElementById(id);
+    let currentGoal       = '';
+    let behaviorFromBank  = false;   // tracks whether textarea was loaded from matrix
+
+    /**
+     * XSS guard — escapes HTML special chars before injecting
+     * user-supplied text into innerHTML.
+     */
+    function escapeHtml(str) {
+      return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    /**
+     * detectUnresolvedTokens(text)
+     * Returns an array of unique [token] strings still present
+     * in the given text, or an empty array if none remain.
+     */
+    function detectUnresolvedTokens(text) {
+      const matches = text.match(/\[[^\]]+\]/g);
+      if (!matches) return [];
+      // Deduplicate
+      return [...new Set(matches)];
+    }
+
+    /* ════════════════════════════════════════════════════════
+       GOAL BANK — DOM INITIALIZER
+       Runs once on DOMContentLoaded. Populates the category
+       <select> from GOAL_BANK_MATRIX keys.
+    ════════════════════════════════════════════════════════ */
+    function initGoalBank() {
+      const categorySelect = $('skillCategory');
+      Object.entries(GOAL_BANK_MATRIX).forEach(([key, category]) => {
+        const opt = document.createElement('option');
+        opt.value       = key;
+        opt.textContent = category.label;
+        categorySelect.appendChild(opt);
+      });
+    }
+
+    /* ════════════════════════════════════════════════════════
+       GOAL BANK — CASCADE HANDLERS
+    ════════════════════════════════════════════════════════ */
+
+    /**
+     * onCategoryChange()
+     * Fired when the Skill Category <select> changes.
+     * Populates the Behavior Template <select> with the
+     * templates belonging to the chosen category, then
+     * enables it. Resets the template dropdown and clears
+     * the behavior textarea.
+     */
+    function onCategoryChange() {
+      const categoryKey      = $('skillCategory').value;
+      const templateSelect   = $('behaviorTemplate');
+      const behaviorTextarea = $('behavior');
+
+      // Reset template dropdown
+      templateSelect.innerHTML = '';
+      templateSelect.disabled  = true;
+
+      // Clear textarea and reset source state
+      behaviorTextarea.value = '';
+      behaviorFromBank       = false;
+      updateBehaviorSourceBadge();
+      updateTokenHint('');
+
+      if (!categoryKey) {
+        const placeholder = document.createElement('option');
+        placeholder.value       = '';
+        placeholder.textContent = '— Select skill category first —';
+        templateSelect.appendChild(placeholder);
+        return;
+      }
+
+      // Add prompt option
+      const prompt = document.createElement('option');
+      prompt.value       = '';
+      prompt.textContent = '— Choose a behavior template —';
+      templateSelect.appendChild(prompt);
+
+      // Populate templates for the selected category
+      const category = GOAL_BANK_MATRIX[categoryKey];
+      category.templates.forEach(tmpl => {
+        const opt = document.createElement('option');
+        opt.value       = tmpl.id;
+        opt.textContent = tmpl.label;
+        templateSelect.appendChild(opt);
+      });
+
+      templateSelect.disabled = false;
+    }
+
+    /**
+     * onTemplateChange()
+     * Fired when the Behavior Template <select> changes.
+     * Injects the template text into the behavior textarea,
+     * enabling the educator to fine-tune it and replace tokens.
+     */
+    function onTemplateChange() {
+      const categoryKey   = $('skillCategory').value;
+      const templateId    = $('behaviorTemplate').value;
+      const behaviorField = $('behavior');
+
+      if (!categoryKey || !templateId) {
+        behaviorField.value = '';
+        behaviorFromBank    = false;
+        updateBehaviorSourceBadge();
+        updateTokenHint('');
+        return;
+      }
+
+      // Look up the template object
+      const category = GOAL_BANK_MATRIX[categoryKey];
+      const tmpl     = category.templates.find(t => t.id === templateId);
+      if (!tmpl) return;
+
+      // Inject the template text — educator edits from here
+      behaviorField.value = tmpl.text;
+      behaviorFromBank    = true;
+      updateBehaviorSourceBadge();
+      updateTokenHint(tmpl.text);
+
+      // Autofocus the textarea so the educator can start editing immediately
+      behaviorField.focus();
+      behaviorField.setSelectionRange(0, 0);
+    }
+
+    /**
+     * onBehaviorInput()
+     * Fired on every keystroke in the behavior textarea.
+     * If the content was originally from the bank, re-check
+     * whether the educator has diverged and update the source
+     * badge and token hint accordingly.
+     */
+    function onBehaviorInput() {
+      const text = $('behavior').value;
+
+      // If the user typed in the textarea, it's now "custom"
+      // regardless of origin — unless it still matches a bank template.
+      if (behaviorFromBank) {
+        const categoryKey = $('skillCategory').value;
+        const templateId  = $('behaviorTemplate').value;
+        if (categoryKey && templateId) {
+          const tmpl = GOAL_BANK_MATRIX[categoryKey]?.templates.find(t => t.id === templateId);
+          if (tmpl && text !== tmpl.text) {
+            // Content has been edited — it's now a customized derivative
+            behaviorFromBank = false;
+          }
+        }
+      }
+
+      updateBehaviorSourceBadge();
+      updateTokenHint(text);
+    }
+
+    /**
+     * updateBehaviorSourceBadge()
+     * Shows the "Goal Bank" or "Custom" pill beside the label.
+     */
+    function updateBehaviorSourceBadge() {
+      const badge = $('behaviorSourceBadge');
+      const text  = $('behavior').value.trim();
+
+      if (!text) {
+        badge.classList.add('hidden');
+        return;
+      }
+
+      badge.classList.remove('hidden', 'from-bank', 'from-custom');
+      if (behaviorFromBank) {
+        badge.classList.add('from-bank');
+        badge.textContent = '⬡ Goal Bank';
+      } else {
+        badge.classList.add('from-custom');
+        badge.textContent = '✎ Custom';
+      }
+    }
+
+    /**
+     * updateTokenHint(text)
+     * Shows or hides the unresolved-token warning hint below
+     * the behavior textarea based on current content.
+     */
+    function updateTokenHint(text) {
+      const hint   = $('tokenHint');
+      const tokens = detectUnresolvedTokens(text);
+      if (tokens.length > 0) {
+        hint.classList.remove('hidden');
+      } else {
+        hint.classList.add('hidden');
+      }
+    }
+
+    /* ════════════════════════════════════════════════════════
+       BEHAVIOR NORMALIZATION
+       ─────────────────────────────────────────────────────────
+       Templates are authored WITHOUT a leading "will" because
+       generateGoal() prepends "will " before the normalized
+       text. This function also handles freeform input where
+       educators may type redundant leading phrases.
+    ════════════════════════════════════════════════════════ */
+    const KNOWN_ACRONYMS = new Set([
+      'AAC','IEP','IDEA','ABA','PBIS','RTI','MTSS','ELL',
+      'ESL','OT','PT','SLP','ADHD','ASD','LD','EBD','IEE',
+    ]);
+
+    function normalizeBehavior(raw) {
+      let text = raw.trim();
+
+      // ── Step 1: strip redundant leading phrases ────────
+      // Order matters: longest patterns first.
+      const prefixPatterns = [
+        /^(the\s+student\s+will\s+be\s+able\s+to\s+)+/i,
+        /^(the\s+student\s+will\s+)+/i,
+        /^(student\s+will\s+be\s+able\s+to\s+)+/i,
+        /^(student\s+will\s+)+/i,
+        /^(will\s+be\s+able\s+to\s+)+/i,
+        /^(will\s+)+/i,
+      ];
+
+      for (const pattern of prefixPatterns) {
+        const stripped = text.replace(pattern, '');
+        if (stripped.length > 0) {
+          text = stripped;
+          break;
+        }
+      }
+
+      // ── Step 2: preserve casing for acronyms / proper nouns
+      const firstToken   = text.split(/\s+/)[0];
+      const isAcronym    = KNOWN_ACRONYMS.has(firstToken);
+      const isProperNoun = /^[A-Z][a-zA-Z]/.test(firstToken);
+
+      if (isAcronym || isProperNoun) return text;
+
+      // ── Step 3: lowercase only the initial character ──
+      return text.charAt(0).toLowerCase() + text.slice(1);
+    }
+
+    /* ════════════════════════════════════════════════════════
+       CORE GOAL GENERATOR
+    ════════════════════════════════════════════════════════ */
+    function generateGoal() {
+      const studentRef = $('studentRef').value.trim();
+      const timeframe  = $('timeframe').value.trim();
+      const condition  = $('condition').value.trim();
+      const behavior   = $('behavior').value.trim();
+      const accuracy   = $('accuracy').value.trim();
+      const evaluation = $('evaluation').value.trim();
+
+      // ── Field validation ─────────────────────────────────
+      const missing = [];
+      if (!studentRef) missing.push('Student Reference');
+      if (!timeframe)  missing.push('Timeframe');
+      if (!behavior)   missing.push('Target Skill / Behavior');
+      if (!accuracy)   missing.push('Accuracy / Criterion');
+      if (!evaluation) missing.push('Consistency / Evaluation');
+
+      const msgEl = $('validationMsg');
+      if (missing.length > 0) {
+        msgEl.textContent = 'Please complete: ' + missing.join(', ') + '.';
+        msgEl.classList.remove('hidden');
+        return;
+      }
+      msgEl.classList.add('hidden');
+
+      // ── Normalize behavior ───────────────────────────────
+      const behNormalized = normalizeBehavior(behavior);
+
+      // ── Assemble goal lines ──────────────────────────────
+      const lines = [];
+      lines.push(timeframe + ',');
+      if (condition) {
+        lines.push(studentRef + ' ' + condition + ',');
+      } else {
+        lines.push(studentRef);
+      }
+      lines.push('will ' + behNormalized);
+      lines.push('with ' + accuracy);
+      lines.push(evaluation + '.');
+
+      currentGoal = lines.join('\n');
+
+      // ── Render output ────────────────────────────────────
+      const output    = $('goalOutput');
+      const empty     = $('emptyState');
+      const container = $('outputContainer');
+
+      output.textContent = currentGoal;
+      output.classList.remove('hidden');
+      empty.style.display = 'none';
+      container.classList.add('has-content');
+
+      // ── Token warning inside output ──────────────────────
+      const unresolvedTokens = detectUnresolvedTokens(currentGoal);
+      const banner           = $('tokenWarningBanner');
+      const bannerList       = $('tokenWarningList');
+      if (unresolvedTokens.length > 0) {
+        bannerList.textContent = ' ' + unresolvedTokens.join(', ');
+        banner.classList.add('visible');
+      } else {
+        banner.classList.remove('visible');
+      }
+
+      // ── Component breakdown ──────────────────────────────
+      const components = [
+        { label: 'Timeframe',   value: timeframe },
+        { label: 'Student Ref', value: studentRef },
+        ...(condition ? [{ label: 'Condition', value: condition }] : []),
+        { label: 'Behavior',    value: behavior },
+        { label: 'Criterion',   value: accuracy },
+        { label: 'Evaluation',  value: evaluation },
+      ];
+
+      $('breakdownItems').innerHTML = components.map(c => `
+        <div class="grid gap-2 items-baseline text-[0.77rem]"
+             style="grid-template-columns:100px 1fr;">
+          <span class="text-[0.68rem] font-semibold tracking-wide uppercase text-surface-500">
+            ${escapeHtml(c.label)}
+          </span>
+          <span class="text-slate-300">${escapeHtml(c.value)}</span>
+        </div>
+      `).join('');
+
+      $('breakdown').classList.remove('hidden');
+      $('copyBtn').disabled = false;
+
+      // Force CSS transition replay
+      container.style.animation = 'none';
+      void container.offsetHeight;
+      container.style.animation = '';
+    }
+
+    /* ════════════════════════════════════════════════════════
+       CLIPBOARD COPY
+    ════════════════════════════════════════════════════════ */
+    function copyGoal() {
+      if (!currentGoal) return;
+
+      const doFlash = () => {
+        const label     = $('copyLabel');
+        const icon      = $('copyIcon');
+        const btn       = $('copyBtn');
+        const container = $('outputContainer');
+
+        icon.innerHTML    = '<polyline points="20 6 9 17 4 12"/>';
+        label.textContent = 'Copied!';
+        btn.style.color       = '#34d399';
+        btn.style.borderColor = 'rgba(52,211,153,0.4)';
+        container.classList.add('copy-flash');
+
+        setTimeout(() => {
+          icon.innerHTML = '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>';
+          label.textContent     = 'Copy Output';
+          btn.style.color       = '';
+          btn.style.borderColor = '';
+          container.classList.remove('copy-flash');
+        }, 2000);
+      };
+
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(currentGoal).then(doFlash).catch(() => {
+          legacyCopy(currentGoal);
+          doFlash();
+        });
+      } else {
+        legacyCopy(currentGoal);
+        doFlash();
+      }
+    }
+
+    function legacyCopy(text) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none;';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+
+    /* ════════════════════════════════════════════════════════
+       M-POWER AI ASYNC SIMULATION
+       Replace the setTimeout block with fetch('/api/mpower-analyze', {...})
+    ════════════════════════════════════════════════════════ */
+    const AI_STATUS_SEQUENCE = [
+      { title: 'Analyzing goal structure…',       sub: 'Checking alignment with IDEA measurability standards' },
+      { title: 'Evaluating observable criteria…', sub: 'Assessing specificity of the behavior descriptor' },
+      { title: 'Reviewing consistency metric…',   sub: 'Validating evaluation method against progress-monitoring best practices' },
+      { title: 'Preparing recommendations…',      sub: 'Almost done' },
+    ];
+
+    let aiSimTimer   = null;
+    let aiSimRunning = false;
+
+    function simulateAiAnalysis() {
+      if (aiSimRunning) return;
+
+      const btn       = $('aiBtn');
+      const label     = $('aiBtnLabel');
+      const statusBar = $('aiStatusBar');
+      const stTitle   = $('aiStatusTitle');
+      const stSub     = $('aiStatusSub');
+
+      aiSimRunning = true;
+      btn.disabled = true;
+
+      $('aiBtnIcon').outerHTML = '<div class="spinner" id="aiBtnIcon"></div>';
+      label.textContent = 'Analyzing…';
+      statusBar.classList.remove('hidden');
+
+      let step = 0;
+      stTitle.textContent = AI_STATUS_SEQUENCE[0].title;
+      stSub.textContent   = AI_STATUS_SEQUENCE[0].sub;
+
+      const cycleStatus = setInterval(() => {
+        step++;
+        if (step < AI_STATUS_SEQUENCE.length) {
+          stTitle.textContent = AI_STATUS_SEQUENCE[step].title;
+          stSub.textContent   = AI_STATUS_SEQUENCE[step].sub;
+        }
+      }, 1100);
+
+      // Replace this with: const res = await fetch('/api/mpower-analyze', { body: JSON.stringify({ goal: currentGoal }) })
+      aiSimTimer = setTimeout(() => {
+        clearInterval(cycleStatus);
+
+        const spinner = $('aiBtnIcon');
+        if (spinner) {
+          const newIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+          newIcon.setAttribute('id',            'aiBtnIcon');
+          newIcon.setAttribute('width',         '14');
+          newIcon.setAttribute('height',        '14');
+          newIcon.setAttribute('viewBox',       '0 0 24 24');
+          newIcon.setAttribute('fill',          'none');
+          newIcon.setAttribute('stroke',        'currentColor');
+          newIcon.setAttribute('stroke-width',  '2');
+          newIcon.setAttribute('stroke-linecap','round');
+          newIcon.setAttribute('stroke-linejoin','round');
+          newIcon.innerHTML = '<path d="M12 3l1.88 5.76a1 1 0 00.95.69H21l-5 3.63a1 1 0 00-.36 1.12L17.52 20 12 16.27 6.48 20l1.88-5.8a1 1 0 00-.36-1.12L3 9.45h6.17a1 1 0 00.95-.69z"/>';
+          spinner.replaceWith(newIcon);
+        }
+
+        label.textContent = 'M-Power AI';
+        statusBar.classList.add('hidden');
+        stTitle.textContent = AI_STATUS_SEQUENCE[0].title;
+        stSub.textContent   = AI_STATUS_SEQUENCE[0].sub;
+        btn.disabled  = false;
+        aiSimRunning  = false;
+      }, 4500);
+    }
+
+    /* ════════════════════════════════════════════════════════
+       KEYBOARD SHORTCUTS
+    ════════════════════════════════════════════════════════ */
+    ['studentRef', 'condition', 'accuracy'].forEach(id => {
+      $(id).addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); generateGoal(); }
+      });
+    });
+
+    /* ════════════════════════════════════════════════════════
+       BOOT
+    ════════════════════════════════════════════════════════ */
+    document.addEventListener('DOMContentLoaded', initGoalBank);
+  </script>
+</body>
+</html>
