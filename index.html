@@ -462,7 +462,7 @@
           <label class="field-label" for="skillCategory">Skill Category</label>
           <select id="skillCategory" class="field" onchange="onCategoryChange()">
             <option value="">— Select a skill category —</option>
-            <!-- Options injected by initGoalBank() -->
+            <!-- Options injected by initGoalBank() as <optgroup> elements -->
           </select>
           <p class="field-hint">Choose a domain to load behavior templates</p>
         </div>
@@ -677,10 +677,10 @@
           </p>
           <p class="text-[0.78rem] font-mono text-accent leading-[1.9] m-0">
             [Timeframe],<br/>
-            [Student] [Condition]<br/>
-            [Behavior]<br/>
-            with [Criterion]<br/>
-            [Evaluation]
+            [Student], [Condition],<br/>
+            will [Behavior]<br/>
+            [, with [Criterion]]<br/>
+            [, [Evaluation]].
           </p>
         </div>
 
@@ -1533,18 +1533,110 @@
 
     /* ════════════════════════════════════════════════════════
        GOAL BANK — DOM INITIALIZER
-       Runs once on DOMContentLoaded. Populates the category
-       <select> from GOAL_BANK_MATRIX keys.
+       ────────────────────────────────────────────────────────
+       Runs once on DOMContentLoaded. Flushes the category
+       <select> and rebuilds it as a grouped <optgroup> menu
+       mapped to the 11 active domains in GOAL_BANK_MATRIX.
+
+       GROUP LAYOUT:
+         1. Reading Strategies
+         2. Writing & Expression
+         3. Math Foundations
+         4. Vocational, Transition & Independent Living
+         5. Behavioral & Self-Regulation
+
+       Each group only renders if its matching matrix keys are
+       detected in scope — safe against future schema changes
+       without throwing or rendering orphaned empty groups.
+
+       Option values mirror the exact GOAL_BANK_MATRIX key
+       strings so all downstream handlers (onCategoryChange,
+       token processing, self-contained detection) continue to
+       resolve the matrix lookup without any modification.
     ════════════════════════════════════════════════════════ */
     function initGoalBank() {
-      const categorySelect = $('skillCategory');
-      Object.entries(GOAL_BANK_MATRIX).forEach(([key, category]) => {
-        const opt = document.createElement('option');
-        opt.value       = key;
-        opt.textContent = category.label;
-        categorySelect.appendChild(opt);
+
+      // ── Group manifest ────────────────────────────────────
+      // Defines display order and membership of each <optgroup>.
+      // Keys must exactly match GOAL_BANK_MATRIX property names.
+      // Groups with zero resolvable keys are silently skipped.
+      const GROUPS = [
+        {
+          label: 'Reading Strategies',
+          keys: [
+            'reading_comprehension',
+            'reading_fluency_decoding',
+          ],
+        },
+        {
+          label: 'Writing & Expression',
+          keys: [
+            'written_expression',
+          ],
+        },
+        {
+          label: 'Math Foundations',
+          keys: [
+            'math_reasoning',
+            'algebra_precalc',
+          ],
+        },
+        {
+          label: 'Vocational, Transition & Independent Living',
+          keys: [
+            'transition_independent',
+            'vocational_career',
+          ],
+        },
+        {
+          label: 'Behavioral & Self-Regulation',
+          keys: [
+            'executive_functioning',
+            'social_communication',
+            'study_skills',
+            'self_determination',
+          ],
+        },
+      ];
+
+      const select = $('skillCategory');
+
+      // ── Flush existing options ────────────────────────────
+      // Removes any options after index 0 while preserving
+      // the prompt option at the top of the list.
+      while (select.options.length > 1) {
+        select.remove(1);
+      }
+
+      // ── Inject <optgroup> elements ────────────────────────
+      GROUPS.forEach(function (group) {
+
+        // Resolve only keys that exist in the live matrix.
+        // Tolerant of future additions or removals to
+        // GOAL_BANK_MATRIX without requiring a parallel update.
+        const resolvedKeys = group.keys.filter(function (key) {
+          return Object.prototype.hasOwnProperty.call(GOAL_BANK_MATRIX, key);
+        });
+
+        // Skip the group entirely if no keys resolved —
+        // avoids rendering a visible but empty <optgroup>.
+        if (resolvedKeys.length === 0) { return; }
+
+        const optgroup  = document.createElement('optgroup');
+        optgroup.label  = group.label;
+
+        resolvedKeys.forEach(function (key) {
+          const category  = GOAL_BANK_MATRIX[key];
+          const opt       = document.createElement('option');
+          opt.value       = key;             // exact matrix key — do not change
+          opt.textContent = category.label;  // display label from matrix
+          optgroup.appendChild(opt);
+        });
+
+        select.appendChild(optgroup);
       });
-    }
+
+    } // end initGoalBank
 
 
     /* ════════════════════════════════════════════════════════
@@ -1937,11 +2029,25 @@
       // Timeframe clause — always present, always followed by comma + space
       let sentence = timeframe + ', ';
 
-      // Subject clause — student reference with optional condition
+      // Subject + optional condition clause
       if (condition) {
-        // Normalize condition: strip any trailing comma the educator may have typed
-        const conditionClean = condition.replace(/,\s*$/, '');
-        sentence += studentRef + ' ' + conditionClean + ', ';
+        // Strip trailing comma/whitespace the educator may have typed
+        const conditionTrimmed = condition.replace(/,\s*$/, '');
+
+        // Force the condition's first character to lowercase so it
+        // flows as a mid-sentence adverbial phrase, not a new clause.
+        // KNOWN_ACRONYMS guard: if the condition opens with a known
+        // all-caps abbreviation (e.g. "AAC support provided"), preserve
+        // its casing — lowercasing "AAC" would break the abbreviation.
+        const firstWord      = conditionTrimmed.split(/\s+/)[0];
+        const conditionLower = KNOWN_ACRONYMS.has(firstWord)
+          ? conditionTrimmed
+          : conditionTrimmed.charAt(0).toLowerCase() + conditionTrimmed.slice(1);
+
+        // Comma after studentRef isolates the reference initials from
+        // the adverbial condition phrase that follows:
+        //   "J.D., given a grade-level reading passage, will…"
+        sentence += studentRef + ', ' + conditionLower + ', ';
       } else {
         sentence += studentRef + ' ';
       }
