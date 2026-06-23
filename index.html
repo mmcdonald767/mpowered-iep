@@ -45,7 +45,7 @@
     html, body { height: 100%; margin: 0; }
     body {
       background-color: #0f1117;
-      color: #c9d1e8;
+      color: #e8ecf4;
       font-family: 'Inter', system-ui, sans-serif;
       -webkit-font-smoothing: antialiased;
     }
@@ -60,7 +60,7 @@
       width: 100%;
       background: #1e2335;
       border: 1px solid #2e3650;
-      color: #c9d1e8;
+      color: #f0f2fa;
       border-radius: 8px;
       padding: 0.55rem 0.85rem;
       font-size: 0.875rem;
@@ -72,7 +72,7 @@
       border-color: #6c8fff;
       box-shadow: 0 0 0 3px rgba(108,143,255,0.22);
     }
-    .field::placeholder { color: #4a5578; }
+    .field::placeholder { color: #6b7a99; }
     .field:disabled {
       opacity: 0.45;
       cursor: not-allowed;
@@ -100,7 +100,7 @@
     }
     .field-hint {
       font-size: 0.72rem;
-      color: #4a5578;
+      color: #7d8fb3;
       margin-top: 0.3rem;
     }
 
@@ -162,7 +162,7 @@
       font-family: 'JetBrains Mono', monospace;
       font-size: 0.92rem;
       line-height: 1.75;
-      color: #e2e8f8;
+      color: #f4f6fe;
       white-space: pre-wrap;
       word-break: break-word;
       margin: 0;
@@ -210,7 +210,7 @@
       text-align: center;
     }
     #emptyState svg { opacity: 0.18; }
-    #emptyState p { color: #4a5578; font-size: 0.8rem; line-height: 1.55; margin: 0; }
+    #emptyState p { color: #7d8fb3; font-size: 0.8rem; line-height: 1.55; margin: 0; }
 
     /* ── Primary action button ────────────────────────────── */
     .btn-primary {
@@ -241,7 +241,7 @@
       justify-content: center;
       gap: 0.5rem;
       background: #1e2335;
-      color: #8fa0cc;
+      color: #b0bdd8;
       font-weight: 500;
       font-size: 0.8rem;
       border: 1px solid #2e3650;
@@ -251,7 +251,7 @@
       transition: background .12s, color .12s, border-color .12s;
       white-space: nowrap;
     }
-    .btn-secondary:hover { background: #252c42; color: #c9d1e8; border-color: #6c8fff; }
+    .btn-secondary:hover { background: #252c42; color: #e8ecf4; border-color: #6c8fff; }
     .btn-secondary:disabled { opacity: .35; cursor: not-allowed; }
 
     /* ── M-Power AI async button variant ─────────────────── */
@@ -352,7 +352,7 @@
     }
   </style>
 </head>
-<body class="bg-surface-900 text-slate-300 font-sans antialiased min-h-screen">
+<body class="bg-surface-900 text-slate-100 font-sans antialiased min-h-screen">
 
   <!-- ════════════════════════════════════════════════════════
        HEADER
@@ -374,7 +374,7 @@
           <h1 class="text-[1.05rem] font-bold text-slate-100 tracking-tight leading-none mb-0.5">
             IEP Goal Architect
           </h1>
-          <p class="text-[0.72rem] text-surface-500 leading-none">
+          <p class="text-[0.72rem] text-slate-400 leading-none">
             Individualized Education Program · Goal Builder
           </p>
         </div>
@@ -403,7 +403,7 @@
       <h2 class="text-[0.78rem] font-semibold tracking-[0.1em] uppercase text-accent mb-1">
         Goal Components
       </h2>
-      <p class="text-[0.85rem] text-surface-500">
+      <p class="text-[0.85rem] text-slate-400">
         All data stays on your device. No information is transmitted externally.
       </p>
     </div>
@@ -582,7 +582,7 @@
             <p class="text-[0.75rem] font-semibold text-[#a78bfa] leading-none mb-0.5" id="aiStatusTitle">
               Analyzing goal structure…
             </p>
-            <p class="text-[0.68rem] text-surface-500 leading-none" id="aiStatusSub">
+            <p class="text-[0.68rem] text-slate-400 leading-none" id="aiStatusSub">
               Checking alignment with IDEA measurability standards
             </p>
           </div>
@@ -605,7 +605,7 @@
               <h2 class="text-[0.78rem] font-semibold tracking-[0.1em] uppercase text-accent leading-none mb-1">
                 Generated Goal
               </h2>
-              <p class="text-[0.72rem] text-surface-500 leading-none">
+              <p class="text-[0.72rem] text-slate-400 leading-none">
                 Review before adding to the student's IEP
               </p>
             </div>
@@ -647,7 +647,7 @@
           <!-- Component breakdown (revealed post-generation) -->
           <div id="breakdown" class="hidden mt-5">
             <hr class="section-divider mt-0" />
-            <p class="text-[0.72rem] font-semibold tracking-[0.08em] uppercase text-surface-500 mb-3">
+            <p class="text-[0.72rem] font-semibold tracking-[0.08em] uppercase text-slate-400 mb-3">
               Component Breakdown
             </p>
             <div id="breakdownItems" class="flex flex-col gap-1.5"></div>
@@ -656,13 +656,13 @@
           <!-- Footer notice -->
           <div class="mt-5 pt-4 border-t border-surface-700 flex items-start gap-2">
             <svg class="flex-shrink-0 mt-px" width="13" height="13" viewBox="0 0 24 24"
-                 fill="none" stroke="#4a5578" stroke-width="2"
+                 fill="none" stroke="#6b7a99" stroke-width="2"
                  stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="10"/>
               <line x1="12" y1="8" x2="12" y2="12"/>
               <line x1="12" y1="16" x2="12.01" y2="16"/>
             </svg>
-            <p class="text-[0.72rem] text-surface-500 leading-relaxed m-0">
+            <p class="text-[0.72rem] text-slate-400 leading-relaxed m-0">
               This tool generates goal language locally. Always review with a qualified
               special education professional before finalizing any IEP document.
             </p>
@@ -672,7 +672,7 @@
 
         <!-- Goal formula quick-reference card -->
         <div class="bg-surface-800 border border-surface-700 rounded-xl px-5 py-4 mt-3">
-          <p class="text-[0.72rem] font-semibold tracking-[0.08em] uppercase text-surface-500 mb-2">
+          <p class="text-[0.72rem] font-semibold tracking-[0.08em] uppercase text-slate-400 mb-2">
             Goal Formula
           </p>
           <p class="text-[0.78rem] font-mono text-accent leading-[1.9] m-0">
@@ -686,15 +686,15 @@
 
         <!-- Goal Bank legend card -->
         <div class="bg-surface-800 border border-surface-700 rounded-xl px-5 py-4 mt-3">
-          <p class="text-[0.72rem] font-semibold tracking-[0.08em] uppercase text-surface-500 mb-2.5">
+          <p class="text-[0.72rem] font-semibold tracking-[0.08em] uppercase text-slate-400 mb-2.5">
             Behavior Source
           </p>
           <div class="flex flex-col gap-2">
-            <div class="flex items-center gap-2 text-[0.75rem] text-slate-400">
+            <div class="flex items-center gap-2 text-[0.75rem] text-slate-300">
               <span class="source-badge from-bank">Goal Bank</span>
               Template loaded from the matrix — edit tokens in the textarea
             </div>
-            <div class="flex items-center gap-2 text-[0.75rem] text-slate-400">
+            <div class="flex items-center gap-2 text-[0.75rem] text-slate-300">
               <span class="source-badge from-custom">Custom</span>
               Free-form text entered directly
             </div>
@@ -1536,64 +1536,59 @@
        ────────────────────────────────────────────────────────
        Runs once on DOMContentLoaded. Flushes the category
        <select> and rebuilds it as a grouped <optgroup> menu
-       mapped to the 11 active domains in GOAL_BANK_MATRIX.
+       partitioned into four condensed subcategory labels.
 
        GROUP LAYOUT:
-         1. Reading Strategies
-         2. Writing & Expression
-         3. Math Foundations
-         4. Vocational, Transition & Independent Living
-         5. Behavioral & Self-Regulation
+         1. Reading
+         2. Writing
+         3. Math
+         4. Vocational / Behavioral
 
        Each group only renders if its matching matrix keys are
-       detected in scope — safe against future schema changes
-       without throwing or rendering orphaned empty groups.
+       detected as own properties of GOAL_BANK_MATRIX — safe
+       against future schema changes without throwing or
+       rendering orphaned empty <optgroup> labels.
 
-       Option values mirror the exact GOAL_BANK_MATRIX key
-       strings so all downstream handlers (onCategoryChange,
-       token processing, self-contained detection) continue to
-       resolve the matrix lookup without any modification.
+       Option values are the exact GOAL_BANK_MATRIX key strings
+       so all downstream handlers (onCategoryChange, token
+       processing, isBehaviorSelfContained) continue to resolve
+       matrix lookups without any modification.
     ════════════════════════════════════════════════════════ */
     function initGoalBank() {
 
       // ── Group manifest ────────────────────────────────────
-      // Defines display order and membership of each <optgroup>.
-      // Keys must exactly match GOAL_BANK_MATRIX property names.
-      // Groups with zero resolvable keys are silently skipped.
+      // Four condensed groups. Keys must exactly match
+      // GOAL_BANK_MATRIX property names. Groups whose keys
+      // produce zero resolved entries are silently skipped.
       const GROUPS = [
         {
-          label: 'Reading Strategies',
+          label: 'Reading',
           keys: [
             'reading_comprehension',
             'reading_fluency_decoding',
           ],
         },
         {
-          label: 'Writing & Expression',
+          label: 'Writing',
           keys: [
             'written_expression',
           ],
         },
         {
-          label: 'Math Foundations',
+          label: 'Math',
           keys: [
             'math_reasoning',
             'algebra_precalc',
           ],
         },
         {
-          label: 'Vocational, Transition & Independent Living',
-          keys: [
-            'transition_independent',
-            'vocational_career',
-          ],
-        },
-        {
-          label: 'Behavioral & Self-Regulation',
+          label: 'Vocational / Behavioral',
           keys: [
             'executive_functioning',
             'social_communication',
             'study_skills',
+            'transition_independent',
+            'vocational_career',
             'self_determination',
           ],
         },
@@ -2118,10 +2113,10 @@
       $('breakdownItems').innerHTML = components.map(c => `
         <div class="grid gap-2 items-baseline text-[0.77rem]"
              style="grid-template-columns:100px 1fr;">
-          <span class="text-[0.68rem] font-semibold tracking-wide uppercase text-surface-500">
+          <span class="text-[0.68rem] font-semibold tracking-wide uppercase text-slate-400">
             ${escapeHtml(c.label)}
           </span>
-          <span class="text-slate-300">${escapeHtml(c.value)}</span>
+          <span class="text-slate-100">${escapeHtml(c.value)}</span>
         </div>
       `).join('');
 
