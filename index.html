@@ -254,6 +254,33 @@
     .btn-secondary:hover { background: #252c42; color: #e8ecf4; border-color: #6c8fff; }
     .btn-secondary:disabled { opacity: .35; cursor: not-allowed; }
 
+    /* ── Badges (added for the district-style enhancement indicator) ── */
+    .badge {
+      display: inline-flex; align-items: center; gap: 0.35rem;
+      font-family: 'JetBrains Mono', monospace; font-size: 0.62rem; font-weight: 600;
+      letter-spacing: 0.05em; text-transform: uppercase;
+      padding: 0.22rem 0.6rem; border-radius: 20px;
+      border: 1px solid transparent;
+    }
+    .badge-dot {
+      width: 5px; height: 5px; border-radius: 50%;
+      background: currentColor; flex-shrink: 0;
+      animation: badgePulse 2s ease-in-out infinite;
+    }
+    @keyframes badgePulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+    /* ── IEP module tabs — Goal / Progress Report / Present Levels ── */
+    .module-tabs-bar { background: #171b26; border-bottom: 1px solid #1e2335; }
+    .module-tabs-inner { max-width: 1280px; margin: 0 auto; padding: 0.65rem 1.5rem; display: flex; gap: 0.4rem; }
+    .module-tab {
+      font-family: 'JetBrains Mono', monospace; font-size: 0.76rem; font-weight: 600;
+      color: #7d8fb3; text-decoration: none; padding: 0.4rem 0.85rem; border-radius: 7px;
+      border: 1px solid transparent; transition: color 0.13s, background 0.13s, border-color 0.13s;
+      white-space: nowrap;
+    }
+    .module-tab:hover { color: #e8ecf4; background: rgba(255,255,255,0.05); }
+    .module-tab.active { color: #6c8fff; background: rgba(108,143,255,0.1); border-color: rgba(108,143,255,0.3); }
+
     /* ── M-Power AI async button variant ─────────────────── */
     .btn-ai {
       display: inline-flex;
@@ -409,6 +436,20 @@
     </div>
   </header>
 
+  <!-- ============================================================
+       IEP ARCHITECT MODULE TABS
+       Not yet a full hub (index.html is still the Goal Architect
+       module itself) — this strip is the first step toward one,
+       letting teachers move between the three modules as they ship.
+  ============================================================ -->
+  <div class="module-tabs-bar">
+    <div class="module-tabs-inner">
+      <a href="https://iep.mpowerededucation.com/" class="module-tab active" aria-current="page">Goal Architect</a>
+      <a href="https://iep.mpowerededucation.com/progress-report-architect.html" class="module-tab">Progress Report Architect</a>
+      <a href="https://iep.mpowerededucation.com/plaafp-architect.html" class="module-tab">Present Levels Architect</a>
+    </div>
+  </div>
+
   <script>
     // ── Unified nav: active state + universal logout ──────────────
     (function () {
@@ -423,13 +464,114 @@
       }
     })();
     function logout() {
-      // Universal sign-out: clear every client-side auth artifact,
-      // then land on the main dashboard (its guard takes over from
-      // there if re-authentication is required).
+      // Universal sign-out — identical across every M-Powered
+      // subdomain: clear origin-specific storage, expire the
+      // domain-wide session cookie, then send the user to the root
+      // login page.
       try { localStorage.clear(); }   catch (e) {}
       try { sessionStorage.clear(); } catch (e) {}
       document.cookie = 'mp_session=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; domain=.mpowerededucation.com; Secure; SameSite=Lax';
-      window.location.href = 'https://www.mpowerededucation.com/dashboard.html';
+      window.location.href = 'https://www.mpowerededucation.com/index.html';
+    }
+  </script>
+
+  <script>
+    // ── GAS endpoint — same unified deployment as the rest of the suite ──
+    // Not yet called by Goal Architect's own drafting logic (that stays
+    // fully local — see the FERPA note below), but required groundwork
+    // for the Progress Report and Present Levels modules, which will
+    // pull roster data from the Caseload portal via this same endpoint.
+    var GAS_URL = 'https://script.google.com/macros/s/AKfycbz4YTW46DN8u3bbvc_6n4PpzswBBCBdmoIfa_mXEPLhTly-1EDlHWPiQqpfBLQIdXic/exec';
+
+    // ── Cross-subdomain session bootstrap ───────────────────────
+    //  sessionStorage never crosses subdomains, so a teacher landing
+    //  here directly starts with an empty local session even though
+    //  they're really signed in. The login page mirrors the
+    //  authenticated email into a mp_session cookie scoped to
+    //  .mpowerededucation.com, which DOES cross subdomains — this
+    //  reads that cookie once per origin and re-derives role/
+    //  displayName fresh via authCheck (never trusts the cookie's
+    //  role, only its email; Code.gs's UserProfiles lookup is the
+    //  actual authority). Best-effort: any failure here just leaves
+    //  the session unhydrated, and the real call that follows falls
+    //  through to its normal 401 handling exactly as before.
+    function _getMpSessionCookie() {
+      var m = document.cookie.match(/(?:^|;\s*)mp_session=([^;]+)/);
+      return m ? decodeURIComponent(m[1]) : null;
+    }
+    function _bootstrapSession() {
+      if (sessionStorage.getItem('mp_beta_email')) return Promise.resolve();
+      var cookieEmail = _getMpSessionCookie();
+      if (!cookieEmail) return Promise.resolve();
+
+      return fetch(GAS_URL.split('#')[0].split('?')[0], {
+        method:  'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body:    JSON.stringify({ action: 'authCheck', userEmail: cookieEmail })
+      })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (d) {
+        if (d && d.authorized) {
+          sessionStorage.setItem('mp_beta_email', cookieEmail);
+          sessionStorage.setItem('mp_beta_role', d.role || '');
+          sessionStorage.setItem('mp_beta_display_name', d.displayName || '');
+          sessionStorage.setItem('mp_beta_auth_time', Date.now().toString());
+        } else {
+          document.cookie = 'mp_session=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; domain=.mpowerededucation.com; Secure; SameSite=Lax';
+        }
+      })
+      .catch(function () { /* best-effort — the real call's own 401 handling takes over */ });
+    }
+
+    // ── Network — beta-gated POST wrapper ───────────────────────
+    //  Not called anywhere yet (Goal Architect's own drafting logic
+    //  is entirely local), but this is the same wrapper every other
+    //  subdomain uses for getRoster / authCheck / etc., ready for the
+    //  Progress Report and Present Levels modules to call once built.
+    function gasPost(payload) {
+      payload = payload || {};
+
+      return _bootstrapSession().then(function () {
+        payload.userEmail = sessionStorage.getItem('mp_beta_email') || '';
+
+        return fetch(GAS_URL.split('#')[0].split('?')[0], {
+          method:  'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body:    JSON.stringify(payload)
+        })
+        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(function (d) {
+          // 401 — no/unrecognized identity: stop and force a real
+          // re-authentication at the login gateway.
+          if (d && d.code === 401) {
+            _clearBetaSession();
+            window.location.href = 'https://www.mpowerededucation.com/index.html?error=unauthorized';
+            return new Promise(function () {}); // halt — navigation is underway
+          }
+          // 403 — recognized but not an enrolled beta role.
+          if (d && d.code === 403) {
+            _clearBetaSession();
+            alert('Access Denied: Your account is not enrolled in the closed beta.');
+            throw new Error('Access denied — not enrolled in the closed beta.');
+          }
+          if (d.result !== 'success') throw new Error(d.error || 'GAS error');
+          return d;
+        });
+      });
+    }
+
+    // ── Beta-session cleanup ─────────────────────────────────────
+    //  Called on 401/403 so a rejected auth session never lingers —
+    //  the user is forced through a real re-authentication rather
+    //  than silently retrying with the same stale identity.
+    function _clearBetaSession() {
+      try {
+        sessionStorage.removeItem('oauth_token');
+        sessionStorage.removeItem('mp_beta_email');
+        sessionStorage.removeItem('mp_beta_role');
+        sessionStorage.removeItem('mp_beta_display_name');
+        sessionStorage.removeItem('mp_beta_auth_time');
+      } catch (e) {}
     }
   </script>
 
@@ -453,7 +595,7 @@
           Individualized Education Program &middot; Goal Builder
         </p>
       </div>
-      <span class="ferpa-badge hidden sm:inline-flex" style="margin-left:auto;" aria-label="FERPA compliant — local processing only">
+      <span class="ferpa-badge hidden sm:inline-flex" style="margin-left:auto;" aria-label="FERPA compliant — local drafting, encrypted sign-in and caseload access">
         <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor"
              stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <rect x="3" y="11" width="18" height="11" rx="2"/>
@@ -471,7 +613,7 @@
         Goal Components
       </h2>
       <p class="text-[0.85rem] text-slate-400">
-        All data stays on your device. No information is transmitted externally.
+        Local goal drafting happens entirely in your browser and is never transmitted. Only if you click <strong class="text-accent">Enhance with District Style</strong> is the drafted text sent over an encrypted connection to your district's M-Powered endpoint for rewriting — nothing is sent automatically, and nothing you draft is stored on a server.
       </p>
     </div>
 
@@ -602,12 +744,12 @@
             <span>Generate Goal</span>
           </button>
 
-          <button class="btn-ai" id="aiBtn" onclick="simulateAiAnalysis()">
+          <button class="btn-ai" id="aiBtn" onclick="enhanceWithDistrictStyle()" disabled title="Generate a local draft first">
             <svg id="aiBtnIcon" width="14" height="14" viewBox="0 0 24 24" fill="none"
                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M12 3l1.88 5.76a1 1 0 00.95.69H21l-5 3.63a1 1 0 00-.36 1.12L17.52 20 12 16.27 6.48 20l1.88-5.8a1 1 0 00-.36-1.12L3 9.45h6.17a1 1 0 00.95-.69z"/>
             </svg>
-            <span>M-Power AI</span>
+            <span id="aiBtnLabel">Enhance with District Style</span>
           </button>
         </div>
 
@@ -616,10 +758,10 @@
           <div class="spinner"></div>
           <div class="flex-1 min-w-0">
             <p class="text-[0.75rem] font-semibold text-[#a78bfa] leading-none mb-0.5" id="aiStatusTitle">
-              Analyzing goal structure…
+              Contacting district style engine…
             </p>
             <p class="text-[0.68rem] text-slate-400 leading-none" id="aiStatusSub">
-              Checking alignment with IDEA measurability standards
+              Rewriting toward Jessamine County's goal-bank conventions
             </p>
           </div>
           <div class="pulse-dot"></div>
@@ -648,6 +790,16 @@
               <span id="copyLabel">Copy Output</span>
             </button>
           </div>
+
+          <div id="enhanceStatusRow" class="hidden mb-3 flex items-center justify-between gap-3">
+            <span class="badge" style="color:#a78bfa;background:rgba(167,139,250,0.08);border-color:rgba(167,139,250,0.28);">
+              <span class="badge-dot"></span>Enhanced with district style
+            </span>
+            <button type="button" class="btn-secondary" style="font-size:0.68rem;padding:0.3rem 0.7rem;" onclick="revertToLocalDraft()">
+              Revert to local draft
+            </button>
+          </div>
+          <p id="enhanceErrorMsg" class="hidden text-[0.74rem] mb-3" style="color:#f87171;"></p>
 
           <div id="outputContainer">
             <div id="emptyState">
@@ -984,6 +1136,10 @@
     const $ = id => document.getElementById(id);
 
     let currentGoal      = '';
+    // Preserves the last LOCAL (non-enhanced) draft so "Revert to local
+    // draft" can restore it after a district-style enhancement, without
+    // re-running generateGoal() and losing the breakdown panel state.
+    let localDraftGoal   = '';
     let behaviorFromBank = false;
 
     function escapeHtml(str) {
@@ -1338,6 +1494,12 @@
 
       $('breakdown').classList.remove('hidden');
       $('copyBtn').disabled = false;
+      $('aiBtn').disabled = false;
+      $('aiBtn').title = '';
+      // A fresh local draft supersedes any earlier enhancement.
+      $('enhanceStatusRow').classList.add('hidden');
+      $('enhanceErrorMsg').classList.add('hidden');
+      localDraftGoal = currentGoal;
 
       container.style.animation = 'none';
       void container.offsetHeight;
@@ -1390,46 +1552,80 @@
     }
 
     /* ── ASYNC SIMULATIONS ────────────────────────────────── */
-    const AI_STATUS_SEQUENCE = [
-      { title: 'Analyzing goal structure…',       sub: 'Checking alignment with IDEA measurability standards' },
-      { title: 'Evaluating observable criteria…', sub: 'Assessing specificity of the behavior descriptor' },
-      { title: 'Reviewing consistency metric…',   sub: 'Validating evaluation method against progress-monitoring best practices' },
-      { title: 'Preparing recommendations…',      sub: 'Almost done' },
-    ];
-
-    let aiSimTimer   = null;
     let aiSimRunning = false;
 
-    function simulateAiAnalysis() {
-      if (aiSimRunning) return;
+    // ── enhanceWithDistrictStyle() ──────────────────────────────────
+    //  Step 2 of the two-step Goal Architect flow. Step 1
+    //  (generateGoal, above) is instant and fully local. This step is
+    //  explicit and opt-in: only when the teacher clicks this button
+    //  does the drafted text leave the browser, sent through the same
+    //  gasPost() wrapper — identity bootstrap, userEmail stamping, and
+    //  401/403 interception — used by the SDI Engine and Probe
+    //  Generator. The backend rewrites toward the district's actual
+    //  goal-bank conventions (condition/behavior/criterion framing,
+    //  controlled measurement-method vocabulary, SDI phrasing pulled
+    //  from the same bank Code.gs already uses for imports).
+    function enhanceWithDistrictStyle() {
+      if (aiSimRunning || !currentGoal) return;
 
       const btn       = $('aiBtn');
-      const label      = $('aiBtnLabel');
+      const label     = $('aiBtnLabel');
       const statusBar = $('aiStatusBar');
-      const stTitle    = $('aiStatusTitle');
-      const stSub      = $('aiStatusSub');
+      const stTitle   = $('aiStatusTitle');
+      const stSub     = $('aiStatusSub');
+      const errEl     = $('enhanceErrorMsg');
 
       aiSimRunning = true;
       btn.disabled = true;
+      errEl.classList.add('hidden');
 
       $('aiBtnIcon').outerHTML = '<div class="spinner" id="aiBtnIcon"></div>';
-      label.textContent = 'Analyzing…';
+      label.textContent = 'Enhancing…';
+      stTitle.textContent = 'Contacting district style engine…';
+      stSub.textContent   = "Rewriting toward Jessamine County's goal-bank conventions";
       statusBar.classList.remove('hidden');
 
-      let step = 0;
-      stTitle.textContent = AI_STATUS_SEQUENCE.title;
-      stSub.textContent   = AI_STATUS_SEQUENCE.sub;
+      const domain = $('domain') ? $('domain').value.trim() : '';
 
-      const cycleStatus = setInterval(() => {
-        step++;
-        if (step < AI_STATUS_SEQUENCE.length) {
-          stTitle.textContent = AI_STATUS_SEQUENCE[step].title;
-          stSub.textContent   = AI_STATUS_SEQUENCE[step].sub;
+      gasPost({
+        action: 'generateGoal',
+        student_tag: $('studentRef').value.trim(),
+        goal_context: currentGoal,
+        domain: domain,
+        params: {
+          timeframe:  $('timeframe').value.trim(),
+          condition:  $('condition').value.trim(),
+          behavior:   $('behavior').value.trim(),
+          accuracy:   $('accuracy').value.trim(),
+          evaluation: $('evaluation').value.trim(),
         }
-      }, 1100);
+      })
+      .then(function (d) {
+        const goal = d.goal || {};
+        const enhancedText = goal.full_text || '';
+        if (!enhancedText) throw new Error('District style engine returned no text.');
 
-      aiSimTimer = setTimeout(() => {
-        clearInterval(cycleStatus);
+        localDraftGoal = currentGoal;   // preserve the local draft for revert
+        currentGoal = enhancedText;
+        $('goalOutput').textContent = enhancedText;
+        $('enhanceStatusRow').classList.remove('hidden');
+
+        const unresolvedTokens = detectUnresolvedTokens(enhancedText);
+        const banner     = $('tokenWarningBanner');
+        const bannerList = $('tokenWarningList');
+        if (unresolvedTokens.length > 0) {
+          bannerList.textContent = ' ' + unresolvedTokens.join(', ');
+          banner.classList.add('visible');
+        } else {
+          banner.classList.remove('visible');
+        }
+      })
+      .catch(function (err) {
+        console.error('[enhanceWithDistrictStyle]', err);
+        errEl.textContent = 'Enhancement failed: ' + (err.message || 'unknown error') + ' — your local draft is unchanged.';
+        errEl.classList.remove('hidden');
+      })
+      .finally(function () {
         const spinner = $('aiBtnIcon');
         if (spinner) {
           const newIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -1445,34 +1641,43 @@
           newIcon.innerHTML = '<path d="M12 3l1.88 5.76a1 1 0 00.95.69H21l-5 3.63a1 1 0 00-.36 1.12L17.52 20 12 16.27 6.48 20l1.88-5.8a1 1 0 00-.36-1.12L3 9.45h6.17a1 1 0 00.95-.69z"/>';
           spinner.replaceWith(newIcon);
         }
-        label.textContent = 'M-Power AI';
+        label.textContent = 'Enhance with District Style';
         statusBar.classList.add('hidden');
-        stTitle.textContent = AI_STATUS_SEQUENCE.title;
-        stSub.textContent   = AI_STATUS_SEQUENCE.sub;
         btn.disabled  = false;
         aiSimRunning  = false;
-      }, 4500);
+      });
+    }
+
+    // ── revertToLocalDraft() ─────────────────────────────────────────
+    //  Undoes an enhancement, restoring exactly what generateGoal()
+    //  produced locally — no re-generation, no second local pass.
+    function revertToLocalDraft() {
+      if (!localDraftGoal) return;
+      currentGoal = localDraftGoal;
+      $('goalOutput').textContent = currentGoal;
+      $('enhanceStatusRow').classList.add('hidden');
+      $('enhanceErrorMsg').classList.add('hidden');
     }
 
     function hydrateSessionEmail() {
-      var email = '';
-      try { email = sessionStorage.getItem('mp_beta_email') || ''; } catch (e) {}
-      var el = document.getElementById('sessionEmailDisplay');
-      if (el && email) {
-        el.textContent = email;
-      }
+      // Bootstrap first: a teacher landing directly on this subdomain
+      // has empty local sessionStorage even when genuinely signed in
+      // (see _bootstrapSession above) — without this, the header
+      // would show nothing until the first real gasPost call.
+      _bootstrapSession().then(function () {
+        var email = '';
+        try { email = sessionStorage.getItem('mp_beta_email') || ''; } catch (e) {}
+        var el = document.getElementById('sessionEmailDisplay');
+        if (el && email) {
+          el.textContent = email;
+        }
+      });
     }
 
-    function signOut() {
-      try {
-        sessionStorage.removeItem('oauth_token');
-        sessionStorage.removeItem('mp_beta_email');
-        sessionStorage.removeItem('mp_beta_auth_time');
-        sessionStorage.removeItem('mp_session_indicator');
-      } catch (e) {}
-      document.cookie = 'mp_session=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; domain=.mpowerededucation.com; Secure; SameSite=Lax';
-      window.location.replace('https://mpowerededucation.com/index.html');
-    }
+    // signOut() removed: a dead legacy duplicate of logout() (unified
+    // nav, above) with its own slightly different session-key list and
+    // a redirect target missing the www. prefix. Nothing called it —
+    // the header's Sign Out button has always used logout().
 
     /* ── SYSTEM EVENT LISTENERS ───────────────────────────── */
     ['studentRef', 'condition', 'accuracy'].forEach(id => {
