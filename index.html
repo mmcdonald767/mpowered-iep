@@ -45,9 +45,10 @@
     html, body { height: 100%; margin: 0; }
     body {
       background-color: #0f1117;
-      color: #e8ecf4;
+      color: #c9d1e8;
       font-family: 'Inter', system-ui, sans-serif;
       -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     }
 
     /* ── Custom scrollbar ─────────────────────────────────── */
@@ -55,54 +56,24 @@
     ::-webkit-scrollbar-track { background: #171b26; }
     ::-webkit-scrollbar-thumb { background: #2e3650; border-radius: 3px; }
 
-    /* ── Form field base ──────────────────────────────────── */
-    .field {
-      width: 100%;
-      background: #1e2335;
-      border: 1px solid #2e3650;
-      color: #f0f2fa;
-      border-radius: 8px;
-      padding: 0.55rem 0.85rem;
-      font-size: 0.875rem;
-      font-family: 'Inter', sans-serif;
-      outline: none;
-      transition: border-color .18s, box-shadow .18s;
+    /* ── Form fields — identical tokens to plaafp/progress-report ── */
+    .field-label { font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #7d8fb3; display: block; margin-bottom: 0.35rem; }
+    .field-hint { font-size: 0.68rem; color: #4a5578; margin-top: 0.3rem; }
+    .field-input, .field-select, .field-textarea {
+      width: 100%; background: #0f1117; border: 1px solid #252c42; border-radius: 8px;
+      color: #e8ecf4; font-family: 'Inter', sans-serif; font-size: 0.85rem; padding: 0.55rem 0.75rem;
+      outline: none; transition: border-color 0.14s, box-shadow 0.14s;
     }
-    .field:focus {
-      border-color: #6c8fff;
-      box-shadow: 0 0 0 3px rgba(108,143,255,0.22);
-    }
-    .field::placeholder { color: #6b7a99; }
-    .field:disabled {
-      opacity: 0.45;
-      cursor: not-allowed;
-    }
-    select.field {
+    .field-textarea { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; line-height: 1.6; resize: vertical; min-height: 90px; }
+    .field-input:focus, .field-select:focus, .field-textarea:focus { border-color: rgba(108,143,255,0.6); box-shadow: 0 0 0 3px rgba(108,143,255,0.12); }
+    .field-input::placeholder, .field-textarea::placeholder { color: #4a5578; }
+    .field-input:disabled, .field-select:disabled, .field-textarea:disabled { opacity: 0.45; cursor: not-allowed; }
+    .field-select {
       appearance: none;
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%234a5578' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
-      background-repeat: no-repeat;
-      background-position: right 0.85rem center;
-      padding-right: 2.25rem;
-      cursor: pointer;
+      background-repeat: no-repeat; background-position: right 0.85rem center; padding-right: 2.25rem; cursor: pointer;
     }
-    select.field:disabled { cursor: not-allowed; }
-    textarea.field { resize: vertical; min-height: 90px; line-height: 1.6; }
-
-    /* ── Field label / hint ───────────────────────────────── */
-    .field-label {
-      display: block;
-      font-size: 0.72rem;
-      font-weight: 600;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: #6c8fff;
-      margin-bottom: 0.4rem;
-    }
-    .field-hint {
-      font-size: 0.72rem;
-      color: #7d8fb3;
-      margin-top: 0.3rem;
-    }
+    .field-select:disabled { cursor: not-allowed; }
 
     /* ── Token pill highlight inside textarea ─────────────── */
     .token-warning {
@@ -212,47 +183,25 @@
     #emptyState svg { opacity: 0.18; }
     #emptyState p { color: #7d8fb3; font-size: 0.8rem; line-height: 1.55; margin: 0; }
 
-    /* ── Primary action button ────────────────────────────── */
+    /* ── Buttons — identical tokens to plaafp/progress-report ── */
     .btn-primary {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.5rem;
-      background: linear-gradient(135deg, #3b5bdb 0%, #6c8fff 100%);
-      color: #fff;
-      font-weight: 600;
-      font-size: 0.875rem;
-      border: none;
-      border-radius: 9px;
-      padding: 0.7rem 1.35rem;
-      cursor: pointer;
-      box-shadow: 0 2px 12px rgba(60,91,219,0.4);
-      transition: transform .12s, box-shadow .12s, filter .12s;
-      white-space: nowrap;
+      display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+      background: linear-gradient(135deg, #3b5bdb 0%, #6c8fff 100%); color: #fff;
+      font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; font-weight: 600;
+      border: none; border-radius: 8px; padding: 0.6rem 1.1rem; cursor: pointer; white-space: nowrap;
+      transition: filter 0.15s, box-shadow 0.15s; box-shadow: 0 2px 12px rgba(60,91,219,0.3);
     }
-    .btn-primary:hover  { filter: brightness(1.1); box-shadow: 0 4px 18px rgba(60,91,219,0.55); }
-    .btn-primary:active { transform: scale(.97); }
-    .btn-primary:disabled { opacity: .45; cursor: not-allowed; filter: none; }
-
-    /* ── Secondary / ghost button ─────────────────────────── */
+    .btn-primary:hover { filter: brightness(1.1); box-shadow: 0 4px 20px rgba(60,91,219,0.5); }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; filter: none; box-shadow: none; }
     .btn-secondary {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.5rem;
-      background: #1e2335;
-      color: #b0bdd8;
-      font-weight: 500;
-      font-size: 0.8rem;
-      border: 1px solid #2e3650;
-      border-radius: 8px;
-      padding: 0.5rem 1rem;
-      cursor: pointer;
-      transition: background .12s, color .12s, border-color .12s;
-      white-space: nowrap;
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      background: #1e2335; color: #7d8fb3;
+      font-family: 'JetBrains Mono', monospace; font-size: 0.74rem; font-weight: 600;
+      border: 1px solid #252c42; border-radius: 7px; padding: 0.45rem 0.85rem; cursor: pointer;
+      transition: background 0.14s, color 0.14s, border-color 0.14s;
     }
     .btn-secondary:hover { background: #252c42; color: #e8ecf4; border-color: #6c8fff; }
-    .btn-secondary:disabled { opacity: .35; cursor: not-allowed; }
+    .btn-secondary:disabled { opacity: 0.35; cursor: not-allowed; }
 
     /* ── Badges (added for the district-style enhancement indicator) ── */
     .badge {
@@ -281,57 +230,27 @@
     .module-tab:hover { color: #e8ecf4; background: rgba(255,255,255,0.05); }
     .module-tab.active { color: #6c8fff; background: rgba(108,143,255,0.1); border-color: rgba(108,143,255,0.3); }
 
-    /* ── M-Power AI async button variant ─────────────────── */
+    /* ── Icon well — identical to plaafp/progress-report ── */
+    .icon-well { width: 40px; height: 40px; background: rgba(108,143,255,0.08); border: 1px solid rgba(108,143,255,0.15); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .icon-well svg { width: 18px; height: 18px; stroke: #6c8fff; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+
+    /* ── Enhance (AI) button — same sizing as btn-primary/secondary ── */
     .btn-ai {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.5rem;
-      background: #1e2335;
-      color: #a78bfa;
-      font-weight: 600;
-      font-size: 0.875rem;
-      border: 1px solid rgba(167,139,250,0.35);
-      border-radius: 9px;
-      padding: 0.7rem 1.35rem;
-      cursor: pointer;
-      transition: background .15s, border-color .15s, color .15s, box-shadow .15s;
-      white-space: nowrap;
+      display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+      background: #1e2335; color: #a78bfa;
+      font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; font-weight: 600;
+      border: 1px solid rgba(167,139,250,0.35); border-radius: 8px; padding: 0.6rem 1.1rem;
+      cursor: pointer; white-space: nowrap;
+      transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
     }
-    .btn-ai:hover {
-      background: rgba(167,139,250,0.08);
-      border-color: rgba(167,139,250,0.6);
-      box-shadow: 0 0 16px rgba(167,139,250,0.18);
-    }
-    .btn-ai:active { transform: scale(.97); }
-    .btn-ai:disabled { opacity: .45; cursor: not-allowed; }
+    .btn-ai:hover { background: rgba(167,139,250,0.08); border-color: rgba(167,139,250,0.6); box-shadow: 0 0 16px rgba(167,139,250,0.18); }
+    .btn-ai:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
 
-    /* ── Spinner animation ────────────────────────────────── */
+    /* ── Spinner + status bar — identical to plaafp/progress-report ── */
     @keyframes spin { to { transform: rotate(360deg); } }
-    .spinner {
-      width: 14px;
-      height: 14px;
-      border: 2px solid rgba(167,139,250,0.25);
-      border-top-color: #a78bfa;
-      border-radius: 50%;
-      animation: spin 0.7s linear infinite;
-      flex-shrink: 0;
-    }
-
-    /* ── Pulse dot for AI loading label ──────────────────── */
-    @keyframes pulse-dot {
-      0%, 100% { opacity: 1; }
-      50%       { opacity: 0.35; }
-    }
-    .pulse-dot {
-      display: inline-block;
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: #a78bfa;
-      animation: pulse-dot 1.1s ease-in-out infinite;
-      flex-shrink: 0;
-    }
+    .spinner { width: 14px; height: 14px; border: 2px solid rgba(167,139,250,0.25); border-top-color: #a78bfa; border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0; }
+    .status-bar { display: none; align-items: center; gap: 0.65rem; background: #1e2335; border: 1px solid rgba(167,139,250,0.2); border-radius: 8px; padding: 0.65rem 0.9rem; margin-top: 0.75rem; }
+    .status-bar.visible { display: flex; }
 
     /* ── Copy flash ───────────────────────────────────────── */
     @keyframes flashGreen {
@@ -341,21 +260,8 @@
     }
     .copy-flash { animation: flashGreen 0.7s ease forwards; }
 
-    /* ── FERPA badge ──────────────────────────────────────── */
-    .ferpa-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-      font-size: 0.68rem;
-      font-weight: 600;
-      letter-spacing: 0.06em;
-      color: #34d399;
-      border: 1px solid rgba(52,211,153,0.3);
-      border-radius: 20px;
-      padding: 0.22rem 0.65rem;
-      background: rgba(52,211,153,0.07);
-      flex-shrink: 0;
-    }
+    /* ── FERPA badge — identical to plaafp/progress-report ── */
+    .ferpa-badge { display: inline-flex; align-items: center; gap: 0.35rem; font-family: 'JetBrains Mono', monospace; font-size: 0.62rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #4a5578; background: rgba(74,85,120,0.08); border: 1px solid rgba(74,85,120,0.25); border-radius: 20px; padding: 0.22rem 0.6rem; }
 
     /* ── Responsive two-column layout ─────────────────────── */
     .layout {
@@ -621,9 +527,17 @@
 
       <section class="bg-surface-800 border border-surface-700 rounded-2xl p-6 shadow-panel">
 
+        <div class="flex items-center gap-3 mb-5">
+          <div class="icon-well"><svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg></div>
+          <div>
+            <h2 class="text-slate-100 font-semibold text-[0.95rem]">Goal Components</h2>
+            <p class="text-[0.72rem]" style="color:#4a5578;">Annual — no timeframe restated per goal</p>
+          </div>
+        </div>
+
         <div class="mb-4">
           <label class="field-label" for="studentRef">Student Reference</label>
-          <input id="studentRef" class="field" type="text" maxlength="8"
+          <input id="studentRef" class="field-input" type="text" maxlength="8"
                  placeholder="e.g. J.D." autocomplete="off" spellcheck="false" />
           <p class="field-hint">Use initials only — never a full name (FERPA)</p>
         </div>
@@ -631,21 +545,8 @@
         <hr class="section-divider" />
 
         <div class="mb-4">
-          <label class="field-label" for="timeframe">Timeframe</label>
-          <select id="timeframe" class="field">
-            <option value="">— Select timeframe —</option>
-            <option value="By the end of the IEP period">By the end of the IEP period</option>
-            <option value="Within 36 weeks">Within 36 weeks</option>
-            <option value="By the end of the school year">By the end of the school year</option>
-            <option value="Within 9 weeks">Within 9 weeks</option>
-            <option value="Within 6 months">Within 6 months</option>
-            <option value="By the next annual review">By the next annual review</option>
-          </select>
-        </div>
-
-        <div class="mb-4">
           <label class="field-label" for="condition">Condition</label>
-          <input id="condition" class="field" type="text"
+          <input id="condition" class="field-input" type="text"
                  placeholder="e.g. given a grade-level reading passage" autocomplete="off" />
           <p class="field-hint">The context or materials provided to the student</p>
         </div>
@@ -654,7 +555,7 @@
 
         <div class="mb-2">
           <label class="field-label" for="skillCategory">Skill Category</label>
-          <select id="skillCategory" class="field" onchange="onCategoryChange()">
+          <select id="skillCategory" class="field-select" onchange="onCategoryChange()">
             <option value="">— Select a skill category —</option>
           </select>
           <p class="field-hint">Choose a domain to load behavior templates</p>
@@ -669,7 +570,7 @@
 
         <div class="mb-3">
           <label class="field-label" for="behaviorTemplate">Behavior Template</label>
-          <select id="behaviorTemplate" class="field" onchange="onTemplateChange()" disabled>
+          <select id="behaviorTemplate" class="field-select" onchange="onTemplateChange()" disabled>
             <option value="">— Select skill category first —</option>
           </select>
           <p class="field-hint">Templates use <span class="text-accent font-semibold">[token]</span> placeholders — replace them in the editor below</p>
@@ -680,7 +581,7 @@
             <label class="field-label mb-0" for="behavior">Target Skill / Behavior</label>
             <span id="behaviorSourceBadge" class="source-badge from-custom hidden border"></span>
           </div>
-          <textarea id="behavior" class="field font-mono text-[0.82rem]"
+          <textarea id="behavior" class="field-textarea"
             placeholder="Select a template above, or type a custom behavior here…"
             oninput="onBehaviorInput()"></textarea>
           <p id="tokenHint" class="field-hint hidden">
@@ -701,14 +602,14 @@
 
         <div class="mb-4">
           <label class="field-label" for="accuracy">Accuracy / Criterion</label>
-          <input id="accuracy" class="field" type="text"
+          <input id="accuracy" class="field-input" type="text"
                  placeholder="e.g. 80% accuracy" autocomplete="off" />
           <p class="field-hint">Quantifiable performance standard</p>
         </div>
 
         <div class="mb-6">
           <label class="field-label" for="evaluation">Consistency / Evaluation</label>
-          <select id="evaluation" class="field">
+          <select id="evaluation" class="field-select">
             <option value="">— Select evaluation method —</option>
             <option value="as measured by teacher observation across 3 consecutive trials">
               across 3 consecutive trials (teacher observation)
@@ -753,8 +654,7 @@
           </button>
         </div>
 
-        <div id="aiStatusBar"
-             class="hidden mt-3 flex items-center gap-2.5 bg-surface-700 border border-[rgba(167,139,250,0.2)] rounded-lg px-3.5 py-2.5">
+        <div id="aiStatusBar" class="status-bar">
           <div class="spinner"></div>
           <div class="flex-1 min-w-0">
             <p class="text-[0.75rem] font-semibold text-[#a78bfa] leading-none mb-0.5" id="aiStatusTitle">
@@ -764,7 +664,6 @@
               Rewriting toward Jessamine County's goal-bank conventions
             </p>
           </div>
-          <div class="pulse-dot"></div>
         </div>
 
       </section>
@@ -773,13 +672,12 @@
         <div class="bg-surface-800 border border-surface-700 rounded-2xl p-6 shadow-panel">
 
           <div class="flex items-start justify-between flex-wrap gap-3 mb-4">
-            <div>
-              <h2 class="text-[0.78rem] font-semibold tracking-[0.1em] uppercase text-accent leading-none mb-1">
-                Generated Goal
-              </h2>
-              <p class="text-[0.72rem] text-slate-400 leading-none">
-                Review before adding to the student's IEP
-              </p>
+            <div class="flex items-center gap-3">
+              <div class="icon-well"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></div>
+              <div>
+                <h2 class="text-slate-100 font-semibold text-[0.95rem]">Generated Goal</h2>
+                <p class="text-[0.72rem]" style="color:#4a5578;">Review before adding to the student's IEP</p>
+              </div>
             </div>
             <button class="btn-secondary" id="copyBtn" onclick="copyGoal()" disabled>
               <svg id="copyIcon" width="13" height="13" viewBox="0 0 24 24" fill="none"
@@ -851,8 +749,8 @@
             Goal Formula
           </p>
           <p class="text-[0.78rem] font-mono text-accent leading-[1.9] m-0">
-            [Timeframe],<br/>
-            [Student], [Condition],<br/>
+            [Condition],<br/>
+            [Student]<br/>
             will [Behavior]<br/>
             [, with [Criterion]]<br/>
             [, [Evaluation]].
@@ -1395,7 +1293,6 @@
     /* ── PROSE SYNTHESIS PRODUCER ─────────────────────────── */
     function generateGoal() {
       const studentRef = $('studentRef').value.trim();
-      const timeframe  = $('timeframe').value.trim();
       const condition  = $('condition').value.trim();
       const behavior   = $('behavior').value.trim();
       const accuracy   = $('accuracy').value.trim();
@@ -1405,7 +1302,6 @@
 
       const missing = [];
       if (!studentRef) missing.push('Student Reference');
-      if (!timeframe)  missing.push('Timeframe');
       if (!behavior)   missing.push('Target Skill / Behavior');
       if (!selfContained) {
         if (!accuracy)   missing.push('Accuracy / Criterion');
@@ -1421,16 +1317,16 @@
       msgEl.classList.add('hidden');
 
       const behNormalized = normalizeBehavior(behavior);
-      let sentence = timeframe + ', ';
+      let sentence = '';
 
       if (condition) {
         const conditionTrimmed = condition.replace(/,\s*$/, '');
-        const firstWord      = conditionTrimmed.split(/\s+/);
-        const conditionLower = KNOWN_ACRONYMS.has(firstWord)
+        const firstWord      = conditionTrimmed.split(/\s+/)[0];
+        const conditionFinal = KNOWN_ACRONYMS.has(firstWord)
           ? conditionTrimmed
-          : conditionTrimmed.charAt(0).toLowerCase() + conditionTrimmed.slice(1);
+          : conditionTrimmed.charAt(0).toUpperCase() + conditionTrimmed.slice(1);
 
-        sentence += studentRef + ', ' + conditionLower + ', ';
+        sentence += conditionFinal + ', ' + studentRef + ' ';
       } else {
         sentence += studentRef + ' ';
       }
@@ -1471,7 +1367,6 @@
       }
 
       const components = [
-        { label: 'Timeframe',   value: timeframe },
         { label: 'Student Ref', value: studentRef },
         ...(condition  ? [{ label: 'Condition',  value: condition  }] : []),
         { label: 'Behavior',    value: behavior },
@@ -1583,7 +1478,7 @@
       label.textContent = 'Enhancing…';
       stTitle.textContent = 'Contacting district style engine…';
       stSub.textContent   = "Rewriting toward Jessamine County's goal-bank conventions";
-      statusBar.classList.remove('hidden');
+      statusBar.classList.add('visible');
 
       const domain = $('domain') ? $('domain').value.trim() : '';
 
@@ -1593,7 +1488,6 @@
         goal_context: currentGoal,
         domain: domain,
         params: {
-          timeframe:  $('timeframe').value.trim(),
           condition:  $('condition').value.trim(),
           behavior:   $('behavior').value.trim(),
           accuracy:   $('accuracy').value.trim(),
@@ -1642,7 +1536,7 @@
           spinner.replaceWith(newIcon);
         }
         label.textContent = 'Enhance with District Style';
-        statusBar.classList.add('hidden');
+        statusBar.classList.remove('visible');
         btn.disabled  = false;
         aiSimRunning  = false;
       });
