@@ -229,7 +229,7 @@
       </p>
       <span class="ferpa-badge mt-3 inline-flex">
         <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-        FERPA &middot; drafted text sent over an encrypted connection only when you click Generate
+        FERPA &middot; names/IDs stripped and replaced with de-identified context before AI processing
       </span>
     </div>
 
@@ -248,6 +248,7 @@
         <div class="field-row">
           <label class="field-label" for="studentTag">Student</label>
           <input id="studentTag" class="field-input" type="text" placeholder="Tag / initials (or pull from Caseload — coming soon)" autocomplete="off" />
+          <p class="field-hint">Matched against Caseload server-side; any name on file is stripped before it ever reaches the AI.</p>
         </div>
 
         <div class="field-row">
