@@ -86,7 +86,7 @@
       margin-right: 0.2rem;
     }
 
-    /* ── Goal Bank selection connector arrow ──────────────── */
+    /* ── Goal Matrix selection connector arrow ─────────────── */
     .cascade-connector {
       display: flex;
       align-items: center;
@@ -97,7 +97,7 @@
       user-select: none;
     }
 
-    /* ── Goal Bank source badge on textarea ──────────────── */
+    /* ── Goal Matrix source badge on textarea ──────────────── */
     .source-badge {
       display: inline-flex;
       align-items: center;
@@ -110,7 +110,7 @@
       padding: 0.12rem 0.45rem;
       transition: opacity .2s;
     }
-    .source-badge.from-bank {
+    .source-badge.from-matrix {
       color: #6c8fff;
       background: rgba(108,143,255,0.1);
       border: 1px solid rgba(108,143,255,0.25);
@@ -536,10 +536,14 @@
         </div>
 
         <div class="mb-4">
-          <label class="field-label" for="studentRef">Student Reference</label>
-          <input id="studentRef" class="field-input" type="text" maxlength="8"
-                 placeholder="e.g. J.D." autocomplete="off" spellcheck="false" />
-          <p class="field-hint">Use initials only — never a full name (FERPA). Matched against Caseload server-side; any name on file is stripped before it ever reaches the AI.</p>
+          <label class="field-label" for="studentSelect">Student</label>
+          <div class="flex gap-2 mb-2">
+            <select id="studentSelect" class="field-select" style="flex:1;" disabled>
+              <option value="">Load caseload to select a student…</option>
+            </select>
+            <button type="button" class="btn-secondary" id="loadRosterBtn" onclick="loadCaseload(true)" style="white-space:nowrap;">Load Caseload</button>
+          </div>
+          <p class="field-hint" id="caseloadStatus">Select a student from your caseload — their identity is stripped server-side before anything reaches the AI.</p>
         </div>
 
         <hr class="section-divider" />
@@ -763,7 +767,7 @@
           </p>
           <div class="flex flex-col gap-2">
             <div class="flex items-center gap-2 text-[0.75rem] text-slate-300">
-              <span class="source-badge from-bank border">Goal Bank</span>
+              <span class="source-badge from-matrix border">Goal Matrix</span>
               Template loaded from the matrix — edit tokens in the textarea
             </div>
             <div class="flex items-center gap-2 text-[0.75rem] text-slate-300">
@@ -826,8 +830,8 @@
       }
     }());
 
-    /* ── GOAL BANK DATA MATRIX ────────────────────────────── */
-    const GOAL_BANK_MATRIX = {
+    /* ── GOAL MATRIX DATA ──────────────────────────────────── */
+    const GOAL_MATRIX = {
       reading_comprehension: {
         label: 'Reading Comprehension',
         conditions: [
@@ -1054,8 +1058,108 @@
       return [...new Set(matches)];
     }
 
-    /* ── GOAL BANK MENU INITIALIZER ───────────────────────── */
-    function initGoalBank() {
+    /* ── CASELOAD DROPDOWN — identical component/logic on all three
+       IEP Architect modules and consistent with the SDI Engine's own
+       caseload picker. Roster comes from the existing getRoster
+       route; dropdown value is an index into _rosterRows, with the
+       actual Tag resolved on demand. Full names are shown here for
+       teacher convenience (the teacher already has legitimate access
+       to them via Caseload) and the first name is used in the LOCAL
+       draft sentence below — that never leaves the browser. Only the
+       Tag is ever sent in the Enhance payload, and Code.gs's
+       _anonymizeForAi() strips even that before anything reaches the
+       AI. See the FERPA badge above. ────────────────────────── */
+    const COL_ID = 1, COL_TAG = 2, COL_FIRST = 3, COL_LAST = 4;
+    const ROSTER_CACHE_KEY = 'mp_roster_cache_v2';
+    const ROSTER_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+    let _rosterRows = [];
+
+    function caseloadStatus(text, tone) {
+      const s = $('caseloadStatus');
+      s.textContent = text;
+      s.style.color = tone === 'error' ? '#f87171' : (tone === 'ok' ? '#34d399' : '');
+    }
+
+    function loadCaseload(force) {
+      const btn = $('loadRosterBtn');
+
+      if (!force) {
+        try {
+          const cached = JSON.parse(sessionStorage.getItem(ROSTER_CACHE_KEY));
+          if (cached && (Date.now() - cached.ts) < ROSTER_CACHE_TTL && Array.isArray(cached.rows)) {
+            populateStudentSelect(cached.rows);
+            return;
+          }
+        } catch (e) {}
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Loading…';
+      caseloadStatus('Fetching your caseload…');
+
+      gasPost({ action: 'getRoster' })
+        .then(function (data) {
+          const allRows = Array.isArray(data.rows) ? data.rows : [];
+          const dataRows = (allRows.length > 1 ? allRows.slice(1) : []).filter(function (row) {
+            return row && (String(row[COL_FIRST] || '').trim() || String(row[COL_LAST] || '').trim());
+          });
+          try { sessionStorage.setItem(ROSTER_CACHE_KEY, JSON.stringify({ ts: Date.now(), rows: dataRows })); } catch (e) {}
+          populateStudentSelect(dataRows);
+        })
+        .catch(function (err) {
+          caseloadStatus('Could not load caseload: ' + err.message, 'error');
+        })
+        .finally(function () {
+          btn.disabled = false;
+          btn.textContent = 'Refresh';
+        });
+    }
+
+    function populateStudentSelect(rows) {
+      _rosterRows = rows;
+      const sel = $('studentSelect');
+      sel.innerHTML = '';
+      sel.disabled = false;
+
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = rows.length ? '— Select a student —' : 'No students on file';
+      sel.appendChild(placeholder);
+
+      rows.forEach(function (row, i) {
+        const o = document.createElement('option');
+        o.value = String(i);
+        const last  = String(row[COL_LAST]  || '').trim();
+        const first = String(row[COL_FIRST] || '').trim();
+        o.textContent = last ? (last + ', ' + first) : first;
+        sel.appendChild(o);
+      });
+
+      caseloadStatus(rows.length + ' student(s) loaded — identity stripped server-side before AI processing.', 'ok');
+    }
+
+    // Resolves the currently-selected dropdown option to the roster's
+    // real Tag — this, not the display name, is what leaves the
+    // browser in the Enhance payload.
+    function _selectedStudentTag() {
+      const idx = $('studentSelect').value;
+      if (idx === '' || !_rosterRows[idx]) return '';
+      return String(_rosterRows[idx][COL_TAG] || '').trim();
+    }
+
+    // First name only, for the LOCAL draft sentence — mirrors the SDI
+    // Engine's own convention of using first name for generated
+    // materials. Never transmitted; the sentence stays in the browser
+    // unless the teacher clicks Enhance, at which point only the Tag
+    // (not this name) leaves the page.
+    function _selectedStudentFirstName() {
+      const idx = $('studentSelect').value;
+      if (idx === '' || !_rosterRows[idx]) return '';
+      return String(_rosterRows[idx][COL_FIRST] || '').trim();
+    }
+
+    /* ── GOAL MATRIX MENU INITIALIZER ─────────────────────── */
+    function initGoalMatrix() {
       const GROUPS = [
         { label: 'Reading', keys: ['reading_comprehension', 'reading_fluency_decoding'] },
         { label: 'Writing', keys: ['written_expression'] },
@@ -1071,7 +1175,7 @@
 
       GROUPS.forEach(function (group) {
         const resolvedKeys = group.keys.filter(function (key) {
-          return Object.prototype.hasOwnProperty.call(GOAL_BANK_MATRIX, key);
+          return Object.prototype.hasOwnProperty.call(GOAL_MATRIX, key);
         });
 
         if (resolvedKeys.length === 0) { return; }
@@ -1080,7 +1184,7 @@
         optgroup.label = group.label;
 
         resolvedKeys.forEach(function (key) {
-          const category = GOAL_BANK_MATRIX[key];
+          const category = GOAL_MATRIX[key];
           const opt      = document.createElement('option');
           opt.value       = key;
           opt.textContent = category.label;
@@ -1118,7 +1222,7 @@
       prompt.textContent = '— Choose a behavior template —';
       templateSelect.appendChild(prompt);
 
-      const category = GOAL_BANK_MATRIX[categoryKey];
+      const category = GOAL_MATRIX[categoryKey];
       category.templates.forEach(tmpl => {
         const opt = document.createElement('option');
         opt.value       = tmpl.id;
@@ -1142,7 +1246,7 @@
         return;
       }
 
-      const category = GOAL_BANK_MATRIX[categoryKey];
+      const category = GOAL_MATRIX[categoryKey];
       const tmpl     = category.templates.find(t => t.id === templateId);
       if (!tmpl) return;
 
@@ -1162,7 +1266,7 @@
         const categoryKey = $('skillCategory').value;
         const templateId  = $('behaviorTemplate').value;
         if (categoryKey && templateId) {
-          const tmpl = GOAL_BANK_MATRIX[categoryKey]?.templates.find(t => t.id === templateId);
+          const tmpl = GOAL_MATRIX[categoryKey]?.templates.find(t => t.id === templateId);
           if (tmpl && text !== tmpl.text) {
             behaviorFromBank = false;
           }
@@ -1182,10 +1286,10 @@
         return;
       }
 
-      badge.classList.remove('hidden', 'from-bank', 'from-custom');
+      badge.classList.remove('hidden', 'from-matrix', 'from-custom');
       if (behaviorFromBank) {
-        badge.classList.add('from-bank');
-        badge.textContent = '⬡ Goal Bank';
+        badge.classList.add('from-matrix');
+        badge.textContent = '⬡ Goal Matrix';
       } else {
         badge.classList.add('from-custom');
         badge.textContent = '✎ Custom';
@@ -1249,7 +1353,7 @@
       const templateId  = $('behaviorTemplate').value;
 
       if (categoryKey && templateId) {
-        const category = GOAL_BANK_MATRIX[categoryKey];
+        const category = GOAL_MATRIX[categoryKey];
         if (category) {
           const tmpl = category.templates.find(t => t.id === templateId);
           if (tmpl && Array.isArray(tmpl.tokens)) {
@@ -1292,7 +1396,7 @@
 
     /* ── PROSE SYNTHESIS PRODUCER ─────────────────────────── */
     function generateGoal() {
-      const studentRef = $('studentRef').value.trim();
+      const studentRef = _selectedStudentFirstName();
       const condition  = $('condition').value.trim();
       const behavior   = $('behavior').value.trim();
       const accuracy   = $('accuracy').value.trim();
@@ -1301,7 +1405,7 @@
       const { selfContained, reason: scReason } = isBehaviorSelfContained(behavior);
 
       const missing = [];
-      if (!studentRef) missing.push('Student Reference');
+      if (!studentRef) missing.push('Student (select from your caseload)');
       if (!behavior)   missing.push('Target Skill / Behavior');
       if (!selfContained) {
         if (!accuracy)   missing.push('Accuracy / Criterion');
@@ -1367,7 +1471,7 @@
       }
 
       const components = [
-        { label: 'Student Ref', value: studentRef },
+        { label: 'Student', value: studentRef },
         ...(condition  ? [{ label: 'Condition',  value: condition  }] : []),
         { label: 'Behavior',    value: behavior },
         ...(!selfContained && accuracy   ? [{ label: 'Criterion',  value: accuracy   }] : []),
@@ -1484,7 +1588,7 @@
 
       gasPost({
         action: 'generateGoal',
-        student_tag: $('studentRef').value.trim(),
+        student_tag: _selectedStudentTag(),
         goal_context: currentGoal,
         domain: domain,
         params: {
@@ -1574,15 +1678,16 @@
     // the header's Sign Out button has always used logout().
 
     /* ── SYSTEM EVENT LISTENERS ───────────────────────────── */
-    ['studentRef', 'condition', 'accuracy'].forEach(id => {
+    ['condition', 'accuracy'].forEach(id => {
       $(id).addEventListener('keydown', e => {
         if (e.key === 'Enter') { e.preventDefault(); generateGoal(); }
       });
     });
 
     document.addEventListener('DOMContentLoaded', function () {
-      initGoalBank();
+      initGoalMatrix();
       hydrateSessionEmail();
+      loadCaseload(false);
     });
   </script>
 </body>

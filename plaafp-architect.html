@@ -242,9 +242,14 @@
         </div>
 
         <div class="field-row">
-          <label class="field-label" for="studentTag">Student</label>
-          <input id="studentTag" class="field-input" type="text" placeholder="Tag / initials (or pull from Caseload — coming soon)" autocomplete="off" />
-          <p class="field-hint">Matched against Caseload server-side; any name on file is stripped before it ever reaches the AI.</p>
+          <label class="field-label" for="studentSelect">Student</label>
+          <div class="flex gap-2 mb-2">
+            <select id="studentSelect" class="field-select" style="flex:1;" disabled>
+              <option value="">Load caseload to select a student…</option>
+            </select>
+            <button type="button" class="btn-secondary" id="loadRosterBtn" onclick="loadCaseload(true)" style="white-space:nowrap;">Load Caseload</button>
+          </div>
+          <p class="field-hint" id="caseloadStatus">Select a student from your caseload — their identity is stripped server-side before anything reaches the AI.</p>
         </div>
 
         <div class="field-row">
@@ -356,6 +361,98 @@
     function $(id) { return document.getElementById(id); }
     var currentPlaafp = '';
 
+    // ── Caseload dropdown — identical component/logic on all three
+    //    IEP Architect modules and consistent with the SDI Engine's
+    //    own caseload picker. Roster comes from the existing
+    //    getRoster route; dropdown value is an index into
+    //    _rosterRows, with the actual Tag resolved on demand — full
+    //    names are shown here for teacher convenience (the teacher
+    //    already has legitimate access to them via Caseload), but only
+    //    the Tag ever leaves this page, and Code.gs's
+    //    _anonymizeForAi() strips even that before anything reaches
+    //    the AI. See the FERPA badge above.
+    var COL_ID = 1, COL_TAG = 2, COL_FIRST = 3, COL_LAST = 4;
+    var ROSTER_CACHE_KEY = 'mp_roster_cache_v2';
+    var ROSTER_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+    var _rosterRows = [];
+
+    function caseloadStatus(text, tone) {
+      var s = $('caseloadStatus');
+      s.textContent = text;
+      s.style.color = tone === 'error' ? '#f87171' : (tone === 'ok' ? '#34d399' : '');
+    }
+
+    function loadCaseload(force) {
+      var btn = $('loadRosterBtn');
+
+      if (!force) {
+        try {
+          var cached = JSON.parse(sessionStorage.getItem(ROSTER_CACHE_KEY));
+          if (cached && (Date.now() - cached.ts) < ROSTER_CACHE_TTL && Array.isArray(cached.rows)) {
+            populateStudentSelect(cached.rows);
+            return;
+          }
+        } catch (e) {}
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Loading…';
+      caseloadStatus('Fetching your caseload…');
+
+      gasPost({ action: 'getRoster' })
+        .then(function (data) {
+          var allRows = Array.isArray(data.rows) ? data.rows : [];
+          var dataRows = (allRows.length > 1 ? allRows.slice(1) : []).filter(function (row) {
+            return row && (String(row[COL_FIRST] || '').trim() || String(row[COL_LAST] || '').trim());
+          });
+          try { sessionStorage.setItem(ROSTER_CACHE_KEY, JSON.stringify({ ts: Date.now(), rows: dataRows })); } catch (e) {}
+          populateStudentSelect(dataRows);
+        })
+        .catch(function (err) {
+          caseloadStatus('Could not load caseload: ' + err.message, 'error');
+        })
+        .finally(function () {
+          btn.disabled = false;
+          btn.textContent = 'Refresh';
+        });
+    }
+
+    function populateStudentSelect(rows) {
+      _rosterRows = rows;
+      var sel = $('studentSelect');
+      sel.innerHTML = '';
+      sel.disabled = false;
+
+      var placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = rows.length ? '— Select a student —' : 'No students on file';
+      sel.appendChild(placeholder);
+
+      rows.forEach(function (row, i) {
+        var o = document.createElement('option');
+        o.value = String(i);
+        var last  = String(row[COL_LAST]  || '').trim();
+        var first = String(row[COL_FIRST] || '').trim();
+        o.textContent = last ? (last + ', ' + first) : first;
+        sel.appendChild(o);
+      });
+
+      caseloadStatus(rows.length + ' student(s) loaded — identity stripped server-side before AI processing.', 'ok');
+    }
+
+    // Resolves the currently-selected dropdown option to the roster's
+    // real Tag — this, not the display name, is what leaves the
+    // browser in the gasPost payload.
+    function _selectedStudentTag() {
+      var idx = $('studentSelect').value;
+      if (idx === '' || !_rosterRows[idx]) return '';
+      return String(_rosterRows[idx][COL_TAG] || '').trim();
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+      loadCaseload(false);
+    });
+
     // Only the "regressed" branch needs a reason — the district
     // examples always explain a decline contextually rather than
     // reporting a bare lower number.
@@ -366,7 +463,7 @@
     });
 
     function generatePlaafp() {
-      var studentTag  = $('studentTag').value.trim();
+      var studentTag  = _selectedStudentTag();
       var domain      = $('domain').value;
       var strength    = $('strength').value.trim();
       var deficit     = $('deficit').value.trim();
